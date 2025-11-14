@@ -55,7 +55,7 @@ class BPClient(BaseExchangeClient):
         url = f"{API_URL}{endpoint}"
         headers = {
             'Content-Type': 'application/json',
-            'X-Broker-Id': '1500'
+            'X-Broker-Id': '0'
         }
         
         # 構建簽名信息（如需要）
