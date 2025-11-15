@@ -49,8 +49,6 @@ class MarketMaker:
         ws_proxy=None,
         exchange='backpack',
         exchange_config=None,
-        self.last_trades_count = self.trades_executed,
-        self.force_adjust_interval = 20,
         enable_database=False
     ):
         self.api_key = api_key
@@ -59,6 +57,8 @@ class MarketMaker:
         self.base_spread_percentage = base_spread_percentage
         self.order_quantity = order_quantity
         self.exchange = exchange
+        self.last_trades_count = self.trades_executed
+        self.force_adjust_interval = 20
         self.exchange_config = exchange_config or {}
         
         # 初始化交易所客户端
