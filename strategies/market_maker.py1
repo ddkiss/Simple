@@ -57,8 +57,6 @@ class MarketMaker:
         self.base_spread_percentage = base_spread_percentage
         self.order_quantity = order_quantity
         self.exchange = exchange
-        self.last_trades_count = self.trades_executed
-        self.force_adjust_interval = 20
         self.exchange_config = exchange_config or {}
         
         # 初始化交易所客户端
@@ -151,6 +149,8 @@ class MarketMaker:
         self.trades_executed = 0
         self.orders_placed = 0
         self.orders_cancelled = 0
+        self.last_trades_count = self.trades_executed
+        self.force_adjust_interval = 20
 
         # 風控狀態
         self._stop_trading = False
