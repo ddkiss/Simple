@@ -1380,7 +1380,7 @@ class MarketMaker:
             # 優化梯度分佈：較小的梯度以提高成交率
             for i in range(self.max_orders):
                 # 非線性遞增的梯度，靠近中間的訂單梯度小，越遠離中間梯度越大
-                gradient_factor = (i ** 1.5) * 1.5
+                gradient_factor = (i ** 1.2) * 1.2
                 
                 buy_adjustment = gradient_factor * self.tick_size
                 sell_adjustment = gradient_factor * self.tick_size
