@@ -2337,12 +2337,12 @@ class MarketMaker:
                     self.subscribe_order_updates()
 
             current_price = self.get_current_price()  # 第一次强制执行，获取当前价格
-                if current_price is not None:
-                    logger.info("策略啟動，執行初始訂單放置")
-                    self.place_limit_orders()  # 假設此方法內含取消並重下邏輯
-                    self.last_adjust_price = current_price  # 記錄初始價格
-                else:
-                    logger.warning("無法獲取初始價格，跳過初始調整")
+            if current_price is not None:
+                logger.info("策略啟動，執行初始訂單放置")
+                self.place_limit_orders()  # 假設此方法內含取消並重下邏輯
+                self.last_adjust_price = current_price  # 記錄初始價格
+            else:
+                logger.warning("無法獲取初始價格，跳過初始調整")
 
             while time.time() - start_time < duration_seconds and not self._stop_flag:
                 iteration += 1
