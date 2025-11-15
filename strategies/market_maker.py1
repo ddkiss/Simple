@@ -49,8 +49,8 @@ class MarketMaker:
         ws_proxy=None,
         exchange='backpack',
         exchange_config=None,
-        self.last_trades_count = self.trades_executed  # 用于检查新成交
-        self.force_adjust_interval = 20  # 新参数：强制调整间隔（可作为 init 参数传入）
+        self.last_trades_count = self.trades_executed,
+        self.force_adjust_interval = 20,
         enable_database=False
     ):
         self.api_key = api_key
