@@ -149,8 +149,9 @@ class MarketMaker:
         self.trades_executed = 0
         self.orders_placed = 0
         self.orders_cancelled = 0
-        self.last_trades_count = self.trades_executed
-        self.force_adjust_interval = 20
+        self.last_trades_count = self.trades_executed  # 用于检查新成交
+        self.force_adjust_spread = self.base_spread_percentage * 1.5  # 強制調整 spread 閾值（可自訂）
+        self.last_adjust_price = None  # 上次調整時的價格，初始 None 表示首次需調整
 
         # 風控狀態
         self._stop_trading = False
@@ -2334,8 +2335,15 @@ class MarketMaker:
                     self.ws.subscribe_bookTicker()
                 if f"account.orderUpdate.{self.symbol}" not in self.ws.subscriptions:
                     self.subscribe_order_updates()
-            
-            iteration_counter = 0
+
+            current_price = self.get_current_price()  # 第一次强制执行，获取当前价格
+                     if current_price is not None:
+                         logger.info("策略啟動，執行初始訂單放置")
+                         self.place_limit_orders()  # 假設此方法內含取消並重下邏輯
+                         self.last_adjust_price = current_price  # 記錄初始價格
+                     else:
+                         logger.warning("無法獲取初始價格，跳過初始調整")
+
             while time.time() - start_time < duration_seconds and not self._stop_flag:
                 iteration += 1
                 iteration_counter += 1  # 新: 每次迭代计数 +1
@@ -2361,18 +2369,24 @@ class MarketMaker:
                 # 檢查是否需要重平衡倉位
                 if self.need_rebalance():
                     self.rebalance_position()
-            
-                # 修改：檢查是否有新成交 或 达到强制调整间隔
-                current_trades_count = self.trades_executed  # 或使用 self.total_quote_volume 如果想基于成交量
-                if current_trades_count > self.last_trades_count or iteration_counter >= self.force_adjust_interval:
+                          
+                # 新: 獲取當前價格
+                current_price = self.get_current_price()
+                if current_price is None:
+                    logger.warning("無法獲取當前價格，維持現有訂單")
+                    continue  # 跳過本次調整
+             
+                # 修改：檢查是否有新成交 或 價格偏離超過 spread
+                current_trades_count = self.trades_executed  # 或使用 self.total_quote_volume 如果想基於成交量
+                if current_trades_count > self.last_trades_count or self._price_deviation_exceeds_spread(current_price):
                     if current_trades_count > self.last_trades_count:
                         logger.info("檢測到新成交，執行訂單調整")
                     else:
-                        logger.info(f"達到 {self.force_adjust_interval} 次迭代，强制執行訂單調整")
+                        logger.info(f"價格偏離超過 {self.force_adjust_spread}%，強制執行訂單調整")
                     self.place_limit_orders()  # 假設此方法內含取消並重下邏輯
-                    iteration_counter = 0  # 新: 重置计数器
+                    self.last_adjust_price = current_price  # 更新上次調整價格
                 else:
-                    logger.info("上個迭代周期無新成交，且未達强制調整間隔，維持現有訂單，跳過取消/重下")
+                    logger.info("上個迭代周期無新成交，且價格偏離未超閾值，維持現有訂單，跳過取消/重下")
             
                 # 更新上次計數
                 self.last_trades_count = current_trades_count
