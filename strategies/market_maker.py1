@@ -2298,9 +2298,9 @@ class MarketMaker:
         """檢查價格偏離是否超過閾值"""
         if self.last_adjust_price is None:
             return True  # 首次調整
-         deviation_pct = abs((current_price - self.last_adjust_price) / self.last_adjust_price) * 100
-         logger.debug(f"當前價格: {current_price}, 上次調整價格: {self.last_adjust_price}, 偏離: {deviation_pct:.2f}%")
-         return deviation_pct > self.force_adjust_spread
+        deviation_pct = abs((current_price - self.last_adjust_price) / self.last_adjust_price) * 100
+        logger.debug(f"當前價格: {current_price}, 上次調整價格: {self.last_adjust_price}, 偏離: {deviation_pct:.2f}%")
+        return deviation_pct > self.force_adjust_spread
 
     def run(self, duration_seconds=3600, interval_seconds=60):
         """執行做市策略"""
