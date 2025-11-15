@@ -18,9 +18,6 @@ from utils.helpers import round_to_precision, round_to_tick_size, calculate_vola
 from logger import setup_logger
 import traceback
 
-self.last_trades_count = self.trades_executed  # 用于检查新成交
-self.force_adjust_interval = 20  # 新参数：强制调整间隔（可作为 init 参数传入）
-
 logger = setup_logger("market_maker")
 
 def format_balance(value, decimals=8, threshold=1e-8) -> str:
@@ -52,6 +49,8 @@ class MarketMaker:
         ws_proxy=None,
         exchange='backpack',
         exchange_config=None,
+        self.last_trades_count = self.trades_executed  # 用于检查新成交
+        self.force_adjust_interval = 20  # 新参数：强制调整间隔（可作为 init 参数传入）
         enable_database=False
     ):
         self.api_key = api_key
