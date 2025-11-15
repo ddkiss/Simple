@@ -2346,7 +2346,6 @@ class MarketMaker:
 
             while time.time() - start_time < duration_seconds and not self._stop_flag:
                 iteration += 1
-                iteration_counter += 1  # 新: 每次迭代计数 +1
                 current_time = time.time()
                 logger.info(f"\n=== 第 {iteration} 次迭代 ===")
                 logger.info(f"時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
