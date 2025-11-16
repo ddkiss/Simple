@@ -1,5 +1,5 @@
 """
-做市策略模塊
+做市策略模塊,全部成交才触发下一次事件
 """
 import time
 import threading
