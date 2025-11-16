@@ -1350,15 +1350,14 @@ class MarketMaker:
     def calculate_prices(self):
         """計算買賣訂單價格"""
         try:
-            bid_price, ask_price = self.get_market_depth()
-            if bid_price is None or ask_price is None:
-                current_price = self.get_current_price()
-                if current_price is None:
-                    logger.error("無法獲取價格信息，無法設置訂單")
-                    return None, None
-                mid_price = current_price
-            else:
-                mid_price = (best_ask + best_bid) / 2
+            orderbook = self.client.get_order_book(self.symbol)
+            best_bid = best_ask = None
+            if orderbook and 'bids' in orderbook and 'asks' in orderbook:
+            if orderbook['bids']:
+                best_bid = float(orderbook['bids'][0][0])
+            if orderbook['asks']:
+                best_ask = float(orderbook['asks'][0][0])
+            mid_price = (best_ask + best_bid) / 2
             
             logger.info(f"市場中間價: {mid_price}")
             
