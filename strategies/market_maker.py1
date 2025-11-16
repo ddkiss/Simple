@@ -1358,7 +1358,7 @@ class MarketMaker:
                     return None, None
                 mid_price = current_price
             else:
-                mid_price = (bid_price + ask_price) / 2
+                mid_price = (best_ask + best_bid) / 2
             
             logger.info(f"市場中間價: {mid_price}")
             
