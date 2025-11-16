@@ -1692,7 +1692,7 @@ class MarketMaker:
         
                 # 計算逐漸增大的調整幅度
                 adjustment = self.tick_size * (retries + 1)
-                logger.info(f"調整賣單價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
+                logger.info(f"調整买单價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
                 order["price"] = str(round_to_tick_size(float(order["price"]) - adjustment, self.tick_size))
                 retries += 1
                 time.sleep(0.1)  # 添加延遲，避免 API 頻率限制
@@ -1745,7 +1745,7 @@ class MarketMaker:
         
                 # 計算逐漸增大的調整幅度
                 adjustment = self.tick_size * (retries + 1)
-                logger.info(f"調整賣單價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
+                logger.info(f"調整卖单價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
                 order["price"] = str(round_to_tick_size(float(order["price"]) + adjustment, self.tick_size))
                 retries += 1
                 time.sleep(0.1)  # 添加延遲，避免 API 頻率限制
