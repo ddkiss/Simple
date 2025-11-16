@@ -1683,9 +1683,9 @@ class MarketMaker:
                 "autoLend": True
             }
             res = self.client.execute_order(order)
-            if isinstance(res, dict) and "error" in res and "POST_ONLY_TAKER" in str(res["error"]):
+            if res.get("status_code") == 400:
                 logger.info("調整買單價格並重試...")
-                order["price"] = str(round_to_tick_size(float(order["price"]) - self.tick_size, self.tick_size))
+                order["price"] = str(round_to_tick_size(float(order["price"]) - self.tick_size*2, self.tick_size))
                 res = self.client.execute_order(order)
             
             # 特殊處理資金不足錯誤
@@ -1727,9 +1727,9 @@ class MarketMaker:
                 "autoLend": True
             }
             res = self.client.execute_order(order)
-            if isinstance(res, dict) and "error" in res and "POST_ONLY_TAKER" in str(res["error"]):
+            if res.get("status_code") == 400:
                 logger.info("調整賣單價格並重試...")
-                order["price"] = str(round_to_tick_size(float(order["price"]) + self.tick_size, self.tick_size))
+                order["price"] = str(round_to_tick_size(float(order["price"]) + self.tick_size*2, self.tick_size))
                 res = self.client.execute_order(order)
             
             # 特殊處理資金不足錯誤
