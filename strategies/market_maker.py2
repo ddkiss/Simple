@@ -350,8 +350,8 @@ class MarketMaker:
             logger.info("使用 REST API 模式（無 WebSocket）")
             return
 
-        wait_time = 0
-        max_wait_time = 2  # 減少等待時間從 10 秒到 2 秒
+        wait_time = 2
+        max_wait_time = 10  # 減少等待時間從 10 秒到 2 秒
         check_interval = 0.2  # 減少檢查間隔從 0.5 秒到 0.2 秒
 
         while not self.ws.connected and wait_time < max_wait_time:
