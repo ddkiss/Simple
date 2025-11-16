@@ -2386,12 +2386,6 @@ class MarketMaker:
                 # 檢查是否需要重平衡倉位
                 if self.need_rebalance():
                     self.rebalance_position()
-                          
-                # 新: 獲取當前價格
-                current_price = self.get_current_price()
-                if current_price is None:
-                    logger.warning("無法獲取當前價格，維持現有訂單")
-                    continue  # 跳過本次調整
              
                 # 修改：檢查是否有新成交 或 價格偏離超過 spread
                 current_trades_count = self.trades_executed  # 或使用 self.total_quote_volume 如果想基於成交量
