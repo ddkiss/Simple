@@ -1683,7 +1683,7 @@ class MarketMaker:
                 "autoLend": True
             }
             res = self.client.execute_order(order)
-            if res.get("status_code") == 400:
+            if isinstance(res, dict) and "error" in res and "take" in str(res["error"]):
                 logger.info("調整買單價格並重試...")
                 order["price"] = str(round_to_tick_size(float(order["price"]) - self.tick_size*2, self.tick_size))
                 res = self.client.execute_order(order)
@@ -1727,7 +1727,7 @@ class MarketMaker:
                 "autoLend": True
             }
             res = self.client.execute_order(order)
-            if res.get("status_code") == 400:
+            if isinstance(res, dict) and "error" in res and "take" in str(res["error"]):
                 logger.info("調整賣單價格並重試...")
                 order["price"] = str(round_to_tick_size(float(order["price"]) + self.tick_size*2, self.tick_size))
                 res = self.client.execute_order(order)
