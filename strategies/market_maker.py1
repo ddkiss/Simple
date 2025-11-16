@@ -1,5 +1,5 @@
 """
-做市策略模塊
+做市策略模塊,全部成交才触发下一次事件
 """
 import time
 import threading
@@ -150,7 +150,7 @@ class MarketMaker:
         self.orders_placed = 0
         self.orders_cancelled = 0
         self.last_trades_count = self.trades_executed  # 用于检查新成交
-        self.force_adjust_spread = self.base_spread_percentage * 2  # 強制調整 spread 閾值（可自訂）
+        self.force_adjust_spread = self.base_spread_percentage * 5  # 強制調整 spread 閾值（可自訂）
         self.last_adjust_price = None  # 上次調整時的價格，初始 None 表示首次需調整
 
         # 風控狀態
@@ -350,8 +350,8 @@ class MarketMaker:
             logger.info("使用 REST API 模式（無 WebSocket）")
             return
 
-        wait_time = 0
-        max_wait_time = 2  # 減少等待時間從 10 秒到 2 秒
+        wait_time = 2
+        max_wait_time = 10  # 減少等待時間從 10 秒到 2 秒
         check_interval = 0.2  # 減少檢查間隔從 0.5 秒到 0.2 秒
 
         while not self.ws.connected and wait_time < max_wait_time:
@@ -1682,6 +1682,7 @@ class MarketMaker:
                 "autoLendRedeem": True,
                 "autoLend": True
             }
+            
             max_retries = 5
             retries = 0
             while retries < max_retries:
@@ -1691,11 +1692,10 @@ class MarketMaker:
         
                 # 計算逐漸增大的調整幅度
                 adjustment = self.tick_size * (retries + 1)
-                logger.info(f"調整买單價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
+                logger.info(f"調整买单價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
                 order["price"] = str(round_to_tick_size(float(order["price"]) - adjustment, self.tick_size))
                 retries += 1
                 time.sleep(0.1)  # 添加延遲，避免 API 頻率限制
-            
             
             # 特殊處理資金不足錯誤
             if isinstance(res, dict) and "error" in res and "INSUFFICIENT_FUNDS" in str(res["error"]):
@@ -1735,6 +1735,7 @@ class MarketMaker:
                 "autoLendRedeem": True,
                 "autoLend": True
             }
+
             max_retries = 5
             retries = 0
             while retries < max_retries:
@@ -1744,11 +1745,10 @@ class MarketMaker:
         
                 # 計算逐漸增大的調整幅度
                 adjustment = self.tick_size * (retries + 1)
-                logger.info(f"調整賣單價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
+                logger.info(f"調整卖单價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
                 order["price"] = str(round_to_tick_size(float(order["price"]) + adjustment, self.tick_size))
                 retries += 1
                 time.sleep(0.1)  # 添加延遲，避免 API 頻率限制
-            
             
             # 特殊處理資金不足錯誤
             if isinstance(res, dict) and "error" in res and "INSUFFICIENT_FUNDS" in str(res["error"]):
@@ -2386,7 +2386,25 @@ class MarketMaker:
                 # 檢查是否需要重平衡倉位
                 if self.need_rebalance():
                     self.rebalance_position()
-             
+              
+                current_price = self.get_current_price()
+
+                # 修改：檢查是否 [全部訂單已成交] 或 價格偏離超過 spread 
+                # 檢查 self.active_buy_orders 和 self.active_sell_orders 是否都為空 
+                # 這兩個列表在 的 self.check_order_fills() 中已經被更新
+                all_orders_filled = (len(self.active_buy_orders) == 0 and len(self.active_sell_orders) == 0)
+
+                if all_orders_filled or self._price_deviation_exceeds_spread(current_price):
+                    if all_orders_filled:
+                        logger.info("檢測到所有訂單已成交，執行訂單調整")
+                    else:
+                        logger.info(f"價格偏離超過 {self.force_adjust_spread}%，強制執行訂單調整")
+                    self.place_limit_orders()  # 假設此方法內含取消並重下邏輯
+                    self.last_adjust_price = current_price  # 更新上次調整價格
+       
+                else:
+                    logger.info("尚有活躍訂單，且價格偏離未超閾值，維持現有訂單，跳過取消/重下")
+            
                 # 修改：檢查是否有新成交 或 價格偏離超過 spread
                 current_trades_count = self.trades_executed  # 或使用 self.total_quote_volume 如果想基於成交量
                 if current_trades_count > self.last_trades_count or self._price_deviation_exceeds_spread(current_price):
