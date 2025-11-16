@@ -1353,10 +1353,10 @@ class MarketMaker:
             orderbook = self.client.get_order_book(self.symbol)
             bid_price = ask_price = None
             if orderbook and 'bids' in orderbook and 'asks' in orderbook:
-            if orderbook['bids']:
-                bid_price = float(orderbook['bids'][0][0])
-            if orderbook['asks']:
-                ask_price = float(orderbook['asks'][0][0])
+                if orderbook['bids']:
+                    bid_price = float(orderbook['bids'][0][0])
+                if orderbook['asks']:
+                    ask_price = float(orderbook['asks'][0][0])
             mid_price = (bid_price + ask_price) / 2
             
             logger.info(f"市場中間價: {mid_price}")
