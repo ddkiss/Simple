@@ -1682,11 +1682,20 @@ class MarketMaker:
                 "autoLendRedeem": True,
                 "autoLend": True
             }
-            res = self.client.execute_order(order)
-            if isinstance(res, dict) and "error" in res and "POST_ONLY_TAKER" in str(res["error"]):
-                logger.info("調整買單價格並重試...")
-                order["price"] = str(round_to_tick_size(float(order["price"]) - self.tick_size, self.tick_size))
+            max_retries = 5
+            retries = 0
+            while retries < max_retries:
                 res = self.client.execute_order(order)
+                if not (isinstance(res, dict) and "error" in res and "take" in str(res["error"])):
+                    break  # 成功或非 "take" 錯誤，跳出循環
+        
+                # 計算逐漸增大的調整幅度
+                adjustment = self.tick_size * (retries + 1)
+                logger.info(f"調整买單價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
+                order["price"] = str(round_to_tick_size(float(order["price"]) - adjustment, self.tick_size))
+                retries += 1
+                time.sleep(0.1)  # 添加延遲，避免 API 頻率限制
+            
             
             # 特殊處理資金不足錯誤
             if isinstance(res, dict) and "error" in res and "INSUFFICIENT_FUNDS" in str(res["error"]):
@@ -1726,11 +1735,20 @@ class MarketMaker:
                 "autoLendRedeem": True,
                 "autoLend": True
             }
-            res = self.client.execute_order(order)
-            if isinstance(res, dict) and "error" in res and "POST_ONLY_TAKER" in str(res["error"]):
-                logger.info("調整賣單價格並重試...")
-                order["price"] = str(round_to_tick_size(float(order["price"]) + self.tick_size, self.tick_size))
+            max_retries = 5
+            retries = 0
+            while retries < max_retries:
                 res = self.client.execute_order(order)
+                if not (isinstance(res, dict) and "error" in res and "take" in str(res["error"])):
+                    break  # 成功或非 "take" 錯誤，跳出循環
+        
+                # 計算逐漸增大的調整幅度
+                adjustment = self.tick_size * (retries + 1)
+                logger.info(f"調整賣單價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
+                order["price"] = str(round_to_tick_size(float(order["price"]) + adjustment, self.tick_size))
+                retries += 1
+                time.sleep(0.1)  # 添加延遲，避免 API 頻率限制
+            
             
             # 特殊處理資金不足錯誤
             if isinstance(res, dict) and "error" in res and "INSUFFICIENT_FUNDS" in str(res["error"]):
