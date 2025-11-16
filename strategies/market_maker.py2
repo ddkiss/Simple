@@ -2388,9 +2388,6 @@ class MarketMaker:
                     self.rebalance_position()
               
                 current_price = self.get_current_price()
-                if current_price is None:
-                    logger.warning("無法獲取當前價格，維持現有訂單")
-                    continue  # 跳过本次迭代
 
                 # 修改：檢查是否 [全部訂單已成交] 或 價格偏離超過 spread 
                 # 檢查 self.active_buy_orders 和 self.active_sell_orders 是否都為空 
