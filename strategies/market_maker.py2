@@ -2383,20 +2383,24 @@ class MarketMaker:
                     logger.warning("無法獲取當前價格，維持現有訂單")
                     continue  # 跳過本次調整
              
-                # 修改：檢查是否有新成交 或 價格偏離超過 spread
-                current_trades_count = self.trades_executed  # 或使用 self.total_quote_volume 如果想基於成交量
-                if current_trades_count > self.last_trades_count or self._price_deviation_exceeds_spread(current_price):
-                    if current_trades_count > self.last_trades_count:
-                        logger.info("檢測到新成交，執行訂單調整")
+               # 修改：檢查是否 [全部訂單已成交] 或 價格偏離超過 spread 
+               # 檢查 self.active_buy_orders 和 self.active_sell_orders 是否都為空 
+               # 這兩個列表在 的 self.check_order_fills() 中已經被更新
+               all_orders_filled = (len(self.active_buy_orders) == 0 and len(self.active_sell_orders) == 0)
+
+               if all_orders_filled or self._price_deviation_exceeds_spread(current_price):
+                    if all_orders_filled:
+                        logger.info("檢測到所有訂單已成交，執行訂單調整")
                     else:
                         logger.info(f"價格偏離超過 {self.force_adjust_spread}%，強制執行訂單調整")
                     self.place_limit_orders()  # 假設此方法內含取消並重下邏輯
                     self.last_adjust_price = current_price  # 更新上次調整價格
+       
                 else:
-                    logger.info("上個迭代周期無新成交，且價格偏離未超閾值，維持現有訂單，跳過取消/重下")
+                    logger.info("尚有活躍訂單，且價格偏離未超閾值，維持現有訂單，跳過取消/重下")
             
-                # 更新上次計數
-                self.last_trades_count = current_trades_count
+                # (注意: 如果使用這個邏輯，self.last_trades_count 就不再需要了)
+                # self.last_trades_count = current_trades_count
             
                 # 計算PnL並輸出簡化統計
                 pnl_data = self.calculate_pnl()
