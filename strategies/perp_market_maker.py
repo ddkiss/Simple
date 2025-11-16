@@ -512,7 +512,7 @@ class PerpetualMarketMaker(MarketMaker):
         net = self.get_net_position()  # 使用API獲取實際倉位
         if math.isclose(net, 0.0, abs_tol=self.min_order_size / 10):
             logger.info("實際倉位為零，無需平倉")
-            return False
+            return True
 
         # 根據實際倉位確定平倉方向
         if net > 0:  # 多頭倉位，需要賣出平倉
