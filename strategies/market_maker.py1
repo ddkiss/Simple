@@ -150,7 +150,7 @@ class MarketMaker:
         self.orders_placed = 0
         self.orders_cancelled = 0
         self.last_trades_count = self.trades_executed  # 用于检查新成交
-        self.force_adjust_spread = self.base_spread_percentage * 1.5  # 強制調整 spread 閾值（可自訂）
+        self.force_adjust_spread = self.base_spread_percentage * 6  # 強制調整 spread 閾值（可自訂）
         self.last_adjust_price = None  # 上次調整時的價格，初始 None 表示首次需調整
 
         # 風控狀態
