@@ -1452,8 +1452,8 @@ class MarketMaker:
         # 獲取市場深度
         bid_price, ask_price = self.get_market_depth()
         if bid_price is None or ask_price is None:
-            bid_price = current_price * 0.998
-            ask_price = current_price * 1.002
+            bid_price = current_price * 0.999
+            ask_price = current_price * 1.001
         
         # 獲取總可用餘額（包含抵押品）
         base_available, base_total = self.get_asset_balance(self.base_asset)
