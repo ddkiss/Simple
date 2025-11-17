@@ -1300,19 +1300,8 @@ class MarketMaker:
         """獲取當前價格（優先使用WebSocket數據）"""
         # 只檢查連接狀態，不觸發重連（避免頻繁重連嘗試）
         price = None
-        if self.ws and self.ws.is_connected():
-            price = self.ws.get_current_price()
-        
-        if price is None:
-            ticker = self.client.get_ticker(self.symbol)
-            if isinstance(ticker, dict) and "error" in ticker:
-                logger.error(f"獲取價格失敗: {ticker['error']}")
-                return None
-            
-            if "lastPrice" not in ticker:
-                logger.error(f"獲取到的價格數據不完整: {ticker}")
-                return None
-            return float(ticker['lastPrice'])
+        bid_price, ask_price = self.get_market_depth()
+        price = (bid_price + ask_price) / 2
         return price
     
     def get_market_depth(self):
