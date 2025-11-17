@@ -2348,6 +2348,14 @@ class MarketMaker:
                 current_time = time.time()
                 logger.info(f"\n=== 第 {iteration} 次迭代 ===")
                 logger.info(f"時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                td = datetime.now() - self.session_start_time
+                total_seconds = int(td.total_seconds())
+                hours = total_seconds // 3600
+                minutes = (total_seconds % 3600) // 60
+                seconds = total_seconds % 60
+                run_time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                logger.info(f"累计运行时间: {run_time}")
+                
             
                 # 檢查連接並在必要時重連
                 connection_status = self.check_ws_connection()
