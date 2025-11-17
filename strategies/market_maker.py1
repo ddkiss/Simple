@@ -1316,29 +1316,21 @@ class MarketMaker:
         return price
     
     def get_market_depth(self):
-        """獲取市場深度（優先使用WebSocket數據）"""
-        # 只檢查連接狀態，不觸發重連（避免頻繁重連嘗試）
-        bid_price, ask_price = None, None
-        if self.ws and self.ws.is_connected():
-            bid_price, ask_price = self.ws.get_bid_ask()
-        
-        if bid_price is None or ask_price is None:
-            order_book = self.client.get_order_book(self.symbol)
-            if isinstance(order_book, dict) and "error" in order_book:
-                logger.error(f"獲取訂單簿失敗: {order_book['error']}")
-                return None, None
-            
-            bids = order_book.get('bids', [])
-            asks = order_book.get('asks', [])
-            if not bids or not asks:
-                return None, None
-            
-            highest_bid = float(bids[0][0]) if bids else None
-            lowest_ask = float(asks[0][0]) if asks else None
-            
-            return highest_bid, lowest_ask
-        
-        return bid_price, ask_price
+        """只通过API获取市场深度（最高买价和最低卖价）"""
+        order_book = self.client.get_order_book(self.symbol)
+        if isinstance(order_book, dict) and "error" in order_book:
+            logger.error(f"獲取訂單簿失敗: {order_book['error']}")
+            return None, None
+
+        bids = order_book.get('bids', [])
+        asks = order_book.get('asks', [])
+        if not bids or not asks:
+            return None, None
+
+        highest_bid = float(bids[0][0])
+        lowest_ask = float(asks[0][0])
+
+        return highest_bid, lowest_ask
     
     def calculate_dynamic_spread(self):
         """計算動態價差基於市場情況"""
@@ -1350,14 +1342,15 @@ class MarketMaker:
     def calculate_prices(self):
         """計算買賣訂單價格"""
         try:
-            orderbook = self.client.get_order_book(self.symbol)
-            bid_price = ask_price = None
-            if orderbook and 'bids' in orderbook and 'asks' in orderbook:
-                if orderbook['bids']:
-                    bid_price = float(orderbook['bids'][0][0])
-                if orderbook['asks']:
-                    ask_price = float(orderbook['asks'][0][0])
-            mid_price = (bid_price + ask_price) / 2
+            bid_price, ask_price = self.get_market_depth()
+            if bid_price is None or ask_price is None:
+                current_price = self.get_current_price()
+                if current_price is None:
+                    logger.error("無法獲取價格信息，無法設置訂單")
+                    return None, None
+                mid_price = current_price
+            else:
+                mid_price = (bid_price + ask_price) / 2
             
             logger.info(f"市場中間價: {mid_price}")
             
