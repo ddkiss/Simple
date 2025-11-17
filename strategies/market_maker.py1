@@ -1664,7 +1664,7 @@ class MarketMaker:
                 "autoLend": True
             }
             
-            max_retries = 5
+            max_retries = 6
             retries = 0
             while retries < max_retries:
                 res = self.client.execute_order(order)
@@ -1672,7 +1672,7 @@ class MarketMaker:
                     break  # 成功或非 "take" 錯誤，跳出循環
         
                 # 計算逐漸增大的調整幅度
-                adjustment = self.tick_size * 1.5 * (retries + 1)
+                adjustment = self.tick_size * 2 * (retries + 1)
                 logger.info(f"調整买单價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
                 order["price"] = str(round_to_tick_size(float(order["price"]) - adjustment, self.tick_size))
                 retries += 1
@@ -1717,7 +1717,7 @@ class MarketMaker:
                 "autoLend": True
             }
 
-            max_retries = 5
+            max_retries = 6
             retries = 0
             while retries < max_retries:
                 res = self.client.execute_order(order)
@@ -1725,7 +1725,7 @@ class MarketMaker:
                     break  # 成功或非 "take" 錯誤，跳出循環
         
                 # 計算逐漸增大的調整幅度
-                adjustment = self.tick_size * 1.5 * (retries + 1)
+                adjustment = self.tick_size * 2 * (retries + 1)
                 logger.info(f"調整卖单價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
                 order["price"] = str(round_to_tick_size(float(order["price"]) + adjustment, self.tick_size))
                 retries += 1
