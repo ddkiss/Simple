@@ -2389,27 +2389,27 @@ class MarketMaker:
                     # 新逻辑：只有全部挂单被吃完才触发
                     trade_triggered = (len(self.active_buy_orders) == 0 and len(self.active_sell_orders) == 0)
                     if trade_triggered:
-                        trigger_reason = "所有訂單已全部成交"
+                        trigger_reason = "所有订单已全部成交"
                 else:
                     # 旧逻辑：只要有新成交就触发
                     current_count = self.trades_executed
                     if current_count > self.last_trades_count:
                         trade_triggered = True
-                        trigger_reason = "檢測到新成交"
+                        trigger_reason = "检测到新成交"
                         self.last_trades_count = current_count  # 更新计数
 
                 if trade_triggered or price_deviated:
                     if trade_triggered and price_deviated:
-                        logger.info(f"{trigger_reason}，同時價格偏離 {self.force_adjust_spread:.2f}% ，執行訂單調整")
+                        logger.info(f"{trigger_reason}，且价格偏离 {self.force_adjust_spread:.4f}% ，执行订单调整")
                     elif trade_triggered:
-                        logger.info(f"{trigger_reason}，執行訂單調整")
+                        logger.info(f"{trigger_reason}，执行订单调整")
                     else:
-                        logger.info(f"價格偏離超過 {self.force_adjust_spread:.2f}% ，強制執行訂單調整")
+                        logger.info(f"价格偏离超过 {self.force_adjust_spread:.4f}% ，执行订单调整")
 
                     self.place_limit_orders()          # 取消旧单 + 重新挂单
                     self.last_adjust_price = current_price
                 else:
-                    logger.info("無觸發條件（未全部成交且價格偏離不足），維持現有訂單不動")      
+                    logger.info("未触发成交条件且价格偏离不足），维持订单不变")      
             
                 # 計算PnL並輸出簡化統計
                 pnl_data = self.calculate_pnl()
