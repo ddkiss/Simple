@@ -32,6 +32,20 @@ def parse_arguments():
     parser.add_argument('--spread', type=float, help='價差百分比 (例如: 0.5)')
     parser.add_argument('--quantity', type=float, help='訂單數量 (可選)')
     parser.add_argument('--max-orders', type=int, default=3, help='每側最大訂單數量 (默認: 3)')
+    # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←← 新增：全部成交才重挂的开关 ←←←←←←←←←←←←←←←←←←←←←
+    parser.add_argument(
+        '--wait-all-filled',
+        action='store_true',
+        default=True,
+        help='只有所有掛單全部成交才重新掛單（推薦、最省手續費，默認開啟）'
+    )
+    parser.add_argument(
+        '--no-wait-all-filled',
+        dest='wait_all_filled',
+        action='store_false',
+        help='部分成交就立刻重新掛單（舊邏輯，僅在極端追價場景使用）'
+    )
+    # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←← 结束新增 ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
     parser.add_argument('--duration', type=int, default=3600, help='運行時間（秒）(默認: 3600)')
     parser.add_argument('--interval', type=int, default=60, help='更新間隔（秒）(默認: 60)')
     parser.add_argument('--market-type', choices=['spot', 'perp'], default='spot', help='市場類型 (spot 或 perp)')
@@ -101,7 +115,7 @@ def main():
         api_key = os.getenv('BACKPACK_KEY', '')
         secret_key = os.getenv('BACKPACK_SECRET', '')
         ws_proxy = os.getenv('BACKPACK_PROXY_WEBSOCKET')
-        base_url = os.getenv('BASE_URL', 'https://api.backpack.work')
+        base_url = os.getenv('BASE_URL', 'https://api.backpack.exchange')
         exchange_config = {
             'api_key': api_key,
             'secret_key': secret_key,
@@ -321,6 +335,7 @@ def main():
                         ws_proxy=ws_proxy,
                         exchange=exchange,
                         exchange_config=exchange_config,
+                        wait_all_filled=args.wait_all_filled,
                         enable_database=args.enable_db
                     )
 
@@ -380,6 +395,7 @@ def main():
                         ws_proxy=ws_proxy,
                         exchange=exchange,
                         exchange_config=exchange_config,
+                        wait_all_filled=args.wait_all_filled,
                         enable_database=args.enable_db
                     )
             
