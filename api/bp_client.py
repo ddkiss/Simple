@@ -1,5 +1,5 @@
 """
-API請求客户端模塊
+API请求客户端模块
 """
 import json
 import time
@@ -16,8 +16,8 @@ logger = setup_logger("api.client")
 class BPClient(BaseExchangeClient):
     """Backpack exchange client (REST).
     
-    統一封裝 API 請求、簽名與重試邏輯。
-    與早期函數式實現對齊（/api vs /wapi 端點與 instruction 名稱），方便遷移。
+    统一封装 API 请求、签名与重试逻辑。
+    与早期函数式实现对齐（/api vs /wapi 端点与 instruction 名称），方便迁移。
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -29,28 +29,28 @@ class BPClient(BaseExchangeClient):
         return "Backpack"
 
     async def connect(self) -> None:
-        logger.info("Backpack 客户端已連接")
+        logger.info("Backpack 客户端已连接")
 
     async def disconnect(self) -> None:
-        logger.info("Backpack 客户端已斷開連接")
+        logger.info("Backpack 客户端已断开连接")
 
     def make_request(self, method: str, endpoint: str, api_key=None, secret_key=None, instruction=None, 
                     params=None, data=None, retry_count=3) -> Dict:
         """
-        執行API請求，支持重試機制
+        执行API请求，支持重试机制
         
         Args:
             method: HTTP方法 (GET, POST, DELETE)
-            endpoint: API端點
-            api_key: API密鑰
-            secret_key: API密鑰
+            endpoint: API端点
+            api_key: API密钥
+            secret_key: API密钥
             instruction: API指令
-            params: 查詢參數
-            data: 請求體數據
-            retry_count: 重試次數
+            params: 查询参数
+            data: 请求体数据
+            retry_count: 重试次数
             
         Returns:
-            API響應數據
+            API响应数据
         """
         url = f"{API_URL}{endpoint}"
         headers = {
@@ -58,12 +58,12 @@ class BPClient(BaseExchangeClient):
             'X-Broker-Id': '0'
         }
         
-        # 構建簽名信息（如需要）
+        # 构建签名信息（如需要）
         if api_key and secret_key and instruction:
             timestamp = str(int(time.time() * 1000))
             window = DEFAULT_WINDOW
             
-            # 構建簽名消息
+            # 构建签名消息
             query_string = ""
             if params:
                 sorted_params = sorted(params.items())
@@ -76,7 +76,7 @@ class BPClient(BaseExchangeClient):
             
             signature = create_signature(secret_key, sign_message)
             if not signature:
-                return {"error": "簽名創建失敗"}
+                return {"error": "签名创建失败"}
             
             headers.update({
                 'X-API-KEY': api_key,
@@ -85,12 +85,12 @@ class BPClient(BaseExchangeClient):
                 'X-WINDOW': window
             })
         
-        # 添加查詢參數到URL
+        # 添加查询参数到URL
         if params and method.upper() in ['GET', 'DELETE']:
             query_string = "&".join([f"{k}={v}" for k, v in params.items()])
             url += f"?{query_string}"
         
-        # 實施重試機制
+        # 实施重试机制
         for attempt in range(retry_count):
             try:
                 if method.upper() == 'GET':
@@ -100,59 +100,59 @@ class BPClient(BaseExchangeClient):
                 elif method.upper() == 'DELETE':
                     response = requests.delete(url, headers=headers, data=json.dumps(data) if data else None, timeout=10)
                 else:
-                    return {"error": f"不支持的請求方法: {method}"}
+                    return {"error": f"不支持的请求方法: {method}"}
                 
-                # 處理響應
+                # 处理响应
                 if response.status_code in [200, 201]:
                     return response.json() if response.text.strip() else {}
                 elif response.status_code == 429:  # 速率限制
-                    wait_time = 1 * (2 ** attempt)  # 指數退避
-                    logger.warning(f"遇到速率限制，等待 {wait_time} 秒後重試")
+                    wait_time = 1 * (2 ** attempt)  # 指数退避
+                    logger.warning(f"遇到速率限制，等待 {wait_time} 秒后重试")
                     time.sleep(wait_time)
                     continue
                 else:
-                    error_msg = f"狀態碼: {response.status_code}, 消息: {response.text}"
+                    error_msg = f"状态码: {response.status_code}, 消息: {response.text}"
                     if attempt < retry_count - 1:
-                        logger.warning(f"請求失敗 ({attempt+1}/{retry_count}): {error_msg}")
-                        time.sleep(1)  # 簡單重試延遲
+                        logger.warning(f"请求失败 ({attempt+1}/{retry_count}): {error_msg}")
+                        time.sleep(1)  # 简单重试延迟
                         continue
                     return {"error": error_msg}
             
             except requests.exceptions.Timeout:
                 if attempt < retry_count - 1:
-                    logger.warning(f"請求超時 ({attempt+1}/{retry_count})，重試中...")
+                    logger.warning(f"请求超时 ({attempt+1}/{retry_count})，重试中...")
                     continue
-                return {"error": "請求超時"}
+                return {"error": "请求超时"}
             except requests.exceptions.ConnectionError:
                 if attempt < retry_count - 1:
-                    logger.warning(f"連接錯誤 ({attempt+1}/{retry_count})，重試中...")
-                    time.sleep(2)  # 連接錯誤通常需要更長等待
+                    logger.warning(f"连接错误 ({attempt+1}/{retry_count})，重试中...")
+                    time.sleep(2)  # 连接错误通常需要更长等待
                     continue
-                return {"error": "連接錯誤"}
+                return {"error": "连接错误"}
             except Exception as e:
                 if attempt < retry_count - 1:
-                    logger.warning(f"請求異常 ({attempt+1}/{retry_count}): {str(e)}，重試中...")
+                    logger.warning(f"请求异常 ({attempt+1}/{retry_count}): {str(e)}，重试中...")
                     continue
-                return {"error": f"請求失敗: {str(e)}"}
+                return {"error": f"请求失败: {str(e)}"}
         
-        return {"error": "達到最大重試次數"}
+        return {"error": "达到最大重试次数"}
 
-    # 各API端點函數
+    # 各API端点函数
     def get_deposit_address(self, blockchain):
-        """獲取存款地址"""
+        """获取存款地址"""
         endpoint = f"/wapi/{API_VERSION}/capital/deposit/address"
         instruction = "depositAddressQuery"
         params = {"blockchain": blockchain}
         return self.make_request("GET", endpoint, self.api_key, self.secret_key, instruction, params)
 
     def get_balance(self):
-        """獲取賬户餘額"""
+        """获取账户余额"""
         endpoint = f"/api/{API_VERSION}/capital"
         instruction = "balanceQuery"
         return self.make_request("GET", endpoint, self.api_key, self.secret_key, instruction)
 
     def get_collateral(self, subaccount_id=None):
-        """獲取抵押品資產"""
+        """获取抵押品资产"""
         endpoint = f"/api/{API_VERSION}/capital/collateral"
         params = {}
         if subaccount_id is not None:
@@ -161,11 +161,11 @@ class BPClient(BaseExchangeClient):
         return self.make_request("GET", endpoint, self.api_key, self.secret_key, instruction, params)
 
     def execute_order(self, order_details):
-        """執行訂單"""
+        """执行订单"""
         endpoint = f"/api/{API_VERSION}/order"
         instruction = "orderExecute"
       
-        # 根據實際請求體產生簽名參數，確保完全一致
+        # 根据实际请求体产生签名参数，确保完全一致
         params = {}
         for key, value in order_details.items():
             if value is None:
@@ -178,78 +178,78 @@ class BPClient(BaseExchangeClient):
         return self.make_request("POST", endpoint, self.api_key, self.secret_key, instruction, params, order_details)
 
     def execute_order_batch(self, orders_list, max_batch_size=50):
-        """批量執行訂單
+        """批量执行订单
 
         Args:
-            orders_list: 訂單列表，每個訂單是一個字典，包含訂單詳情
-            max_batch_size: 單次批量下單的最大訂單數量，默認50個
+            orders_list: 订单列表，每个订单是一个字典，包含订单详情
+            max_batch_size: 单次批量下单的最大订单数量，默认50个
 
         Returns:
-            批量訂單結果
+            批量订单结果
         """
-        # 如果訂單數量超過限制，分批處理
+        # 如果订单数量超过限制，分批处理
         if len(orders_list) > max_batch_size:
-            logger.info(f"訂單數量 {len(orders_list)} 超過單次限制 {max_batch_size}，將分批下單")
+            logger.info(f"订单数量 {len(orders_list)} 超过单次限制 {max_batch_size}，将分批下单")
             all_results = []
             for i in range(0, len(orders_list), max_batch_size):
                 batch = orders_list[i:i + max_batch_size]
-                logger.info(f"處理第 {i//max_batch_size + 1} 批，共 {len(batch)} 個訂單")
+                logger.info(f"处理第 {i//max_batch_size + 1} 批，共 {len(batch)} 个订单")
                 result = self._execute_order_batch_internal(batch)
 
                 if isinstance(result, dict) and "error" in result:
-                    # 如果某批次失敗，返回錯誤
+                    # 如果某批次失败，返回错误
                     return result
 
                 if isinstance(result, list):
-                    logger.debug(f"第 {i//max_batch_size + 1} 批返回 {len(result)} 個訂單結果")
+                    logger.debug(f"第 {i//max_batch_size + 1} 批返回 {len(result)} 个订单结果")
                     all_results.extend(result)
                 elif isinstance(result, dict):
-                    logger.debug(f"第 {i//max_batch_size + 1} 批返回單個訂單結果")
+                    logger.debug(f"第 {i//max_batch_size + 1} 批返回单个订单结果")
                     all_results.append(result)
 
-                # 批次之間添加短暫延遲，避免速率限制
+                # 批次之间添加短暂延迟，避免速率限制
                 if i + max_batch_size < len(orders_list):
                     import time
                     time.sleep(0.5)
 
-            logger.info(f"所有批次完成，共返回 {len(all_results)} 個訂單結果")
+            logger.info(f"所有批次完成，共返回 {len(all_results)} 个订单结果")
             return all_results
         else:
             return self._execute_order_batch_internal(orders_list)
 
     def _execute_order_batch_internal(self, orders_list):
-        """內部批量下單實現
+        """内部批量下单实现
 
         Args:
-            orders_list: 訂單列表
+            orders_list: 订单列表
 
         Returns:
-            批量訂單結果
+            批量订单结果
         """
-        # 根據 Backpack API 文檔，批量下單端點是 POST /api/v1/orders
+        # 根据 Backpack API 文档，批量下单端点是 POST /api/v1/orders
         endpoint = f"/api/{API_VERSION}/orders"
-        instruction = "orderExecute"  # 每個訂單使用 orderExecute 指令
+        instruction = "orderExecute"  # 每个订单使用 orderExecute 指令
 
-        # 請求體直接是訂單數組，不需要包裝在 {orders: ...} 中
+        # 请求体直接是订单数组，不需要包装在 {orders: ...} 中
         data = orders_list
 
-        # 構建簽名參數字符串
-        # 根據文檔：為每個訂單構建 instruction=orderExecute&param1=value1&param2=value2...
-        # 然後將所有訂單的參數字符串拼接起來
+        # 构建签名参数字符串
+        # 根据文档：为每个订单构建 instruction=orderExecute&param1=value1&param2=value2...
+        # 然后将所有订单的参数字符串拼接起来
         param_strings = []
 
         for order in orders_list:
-            # 按字母順序排序訂單參數
+            # 按字母顺序排序订单参数
             sorted_params = sorted(order.items())
 
-            # 構建單個訂單的參數字符串
+            # 构建单个订单的参数字符串
             order_params = []
             order_params.append(f"instruction={instruction}")
 
             for key, value in sorted_params:
                 if value is None:
                     continue
-                # 布爾值轉換為小寫字符串
+                # 布尔值转换为小写字符串
                 if isinstance(value, bool):
                     order_params.append(f"{key}={str(value).lower()}")
                 else:
@@ -257,20 +257,20 @@ class BPClient(BaseExchangeClient):
 
             param_strings.append("&".join(order_params))
 
-        # 拼接所有訂單的參數字符串
+        # 拼接所有订单的参数字符串
         sign_message = "&".join(param_strings)
 
-        # 添加時間戳和窗口
+        # 添加时间戳和窗口
         timestamp = str(int(time.time() * 1000))
         window = DEFAULT_WINDOW
         sign_message += f"&timestamp={timestamp}&window={window}"
 
-        # 創建簽名
+        # 创建签名
         signature = create_signature(self.secret_key, sign_message)
         if not signature:
-            return {"error": "簽名創建失敗"}
+            return {"error": "签名创建失败"}
 
-        # 構建請求頭
+        # 构建请求头
         url = f"{API_URL}{endpoint}"
         headers = {
             'Content-Type': 'application/json',
@@ -281,7 +281,7 @@ class BPClient(BaseExchangeClient):
             'X-Broker-Id': '1500'
         }
 
-        # 執行請求（使用自定義頭，不通過 make_request）
+        # 执行请求（使用自定义头，不通过 make_request）
         import json
         import requests
 
@@ -294,28 +294,28 @@ class BPClient(BaseExchangeClient):
                     return response.json() if response.text.strip() else {}
                 elif response.status_code == 429:  # 速率限制
                     wait_time = 1 * (2 ** attempt)
-                    logger.warning(f"遇到速率限制，等待 {wait_time} 秒後重試")
+                    logger.warning(f"遇到速率限制，等待 {wait_time} 秒后重试")
                     time.sleep(wait_time)
                     continue
                 else:
-                    error_msg = f"狀態碼: {response.status_code}, 消息: {response.text}"
+                    error_msg = f"状态码: {response.status_code}, 消息: {response.text}"
                     if attempt < retry_count - 1:
-                        logger.warning(f"請求失敗 ({attempt+1}/{retry_count}): {error_msg}")
+                        logger.warning(f"请求失败 ({attempt+1}/{retry_count}): {error_msg}")
                         time.sleep(1)
                         continue
                     return {"error": error_msg}
 
             except Exception as e:
                 if attempt < retry_count - 1:
-                    logger.warning(f"請求異常 ({attempt+1}/{retry_count}): {str(e)}，重試中...")
+                    logger.warning(f"请求异常 ({attempt+1}/{retry_count}): {str(e)}，重试中...")
                     time.sleep(1)
                     continue
-                return {"error": f"請求失敗: {str(e)}"}
+                return {"error": f"请求失败: {str(e)}"}
 
-        return {"error": "達到最大重試次數"}
+        return {"error": "达到最大重试次数"}
 
     def get_open_orders(self, symbol=None):
-        """獲取未成交訂單"""
+        """获取未成交订单"""
         endpoint = f"/api/{API_VERSION}/orders"
         instruction = "orderQueryAll"
         params = {}
@@ -324,7 +324,7 @@ class BPClient(BaseExchangeClient):
         return self.make_request("GET", endpoint, self.api_key, self.secret_key, instruction, params)
 
     def cancel_all_orders(self, symbol):
-        """取消所有訂單"""
+        """取消所有订单"""
         endpoint = f"/api/{API_VERSION}/orders"
         instruction = "orderCancelAll"
         params = {"symbol": symbol}
@@ -332,7 +332,7 @@ class BPClient(BaseExchangeClient):
         return self.make_request("DELETE", endpoint, self.api_key, self.secret_key, instruction, params, data)
 
     def cancel_order(self, order_id, symbol):
-        """取消指定訂單"""
+        """取消指定订单"""
         endpoint = f"/api/{API_VERSION}/order"
         instruction = "orderCancel"
         params = {"orderId": order_id, "symbol": symbol}
@@ -340,7 +340,7 @@ class BPClient(BaseExchangeClient):
         return self.make_request("DELETE", endpoint, self.api_key, self.secret_key, instruction, params, data)
 
     def get_ticker(self, symbol):
-        """獲取市場價格"""
+        """获取市场价格"""
         endpoint = f"/api/{API_VERSION}/ticker"
         params = {"symbol": symbol}
         response = self.make_request("GET", endpoint, params=params)
@@ -350,7 +350,7 @@ class BPClient(BaseExchangeClient):
 
         parsed = self._parse_ticker_snapshot(response)
         if not parsed:
-            return {"error": "無法解析ticker數據"}
+            return {"error": "无法解析ticker数据"}
 
         symbol_value = self._extract_from_payload(response, ("symbol", "s"))
         if symbol_value:
@@ -359,12 +359,12 @@ class BPClient(BaseExchangeClient):
         return parsed
 
     def get_markets(self):
-        """獲取所有交易對信息"""
+        """获取所有交易对信息"""
         endpoint = f"/api/{API_VERSION}/markets"
         return self.make_request("GET", endpoint)
 
     def get_order_book(self, symbol, limit=None):
-        """獲取市場深度"""
+        """获取市场深度"""
         endpoint = f"/api/{API_VERSION}/depth"
         params = {"symbol": symbol}
         if limit is not None:
@@ -380,7 +380,7 @@ class BPClient(BaseExchangeClient):
             "asks": asks,
         }
 
-        # 保留部分關鍵欄位，方便上層使用
+        # 保留部分关键字段，方便上层使用
         timestamp = self._extract_from_payload(response, ("ts", "timestamp", "time"))
         if timestamp is not None:
             result["timestamp"] = timestamp
@@ -401,7 +401,7 @@ class BPClient(BaseExchangeClient):
 
     @staticmethod
     def _extract_from_payload(payload: Dict[str, Any], keys: Iterable[str]) -> Optional[Any]:
-        """從payload中提取指定鍵的值，支持在data節點下查找"""
+        """从payload中提取指定键的值，支持在data节点下查找"""
         data = payload.get("data") if isinstance(payload, dict) else None
         for key in keys:
             if isinstance(payload, dict) and key in payload and payload[key] not in (None, ""):
@@ -412,7 +412,7 @@ class BPClient(BaseExchangeClient):
 
     @classmethod
     def _parse_order_book_snapshot(cls, payload: Dict[str, Any]) -> Tuple[List[List[float]], List[List[float]]]:
-        """根據官方 API 規範解析訂單簿資料結構"""
+        """根据官方 API 规范解析订单簿数据结构"""
         if not isinstance(payload, dict):
             return [], []
 
@@ -443,7 +443,7 @@ class BPClient(BaseExchangeClient):
 
     @classmethod
     def _parse_ticker_snapshot(cls, payload: Dict[str, Any]) -> Dict[str, Optional[str]]:
-        """根據官方 API 規範解析 ticker 響應"""
+        """根据官方 API 规范解析 ticker 响应"""
         if not isinstance(payload, dict):
             return {}
 
@@ -481,7 +481,7 @@ class BPClient(BaseExchangeClient):
         return result
 
     def get_fill_history(self, symbol=None, limit=100):
-        """獲取歷史成交記錄"""
+        """获取历史成交记录"""
         endpoint = f"/wapi/{API_VERSION}/history/fills"
         instruction = "fillHistoryQueryAll"
         params = {"limit": str(limit)}
@@ -490,20 +490,20 @@ class BPClient(BaseExchangeClient):
         return self.make_request("GET", endpoint, self.api_key, self.secret_key, instruction, params)
 
     def get_klines(self, symbol, interval="1h", limit=100):
-        """獲取K線數據"""
+        """获取K线数据"""
         endpoint = f"/api/{API_VERSION}/klines"
         
-        # 計算起始時間 (秒)
+        # 计算起始时间 (秒)
         current_time = int(time.time())
         
-        # 各間隔對應的秒數
+        # 各间隔对应的秒数
         interval_seconds = {
             "1m": 60, "3m": 180, "5m": 300, "15m": 900, "30m": 1800,
             "1h": 3600, "2h": 7200, "4h": 14400, "6h": 21600, "8h": 28800,
             "12h": 43200, "1d": 86400, "3d": 259200, "1w": 604800, "1month": 2592000
         }
         
-        # 計算合適的起始時間
+        # 计算合适的起始时间
         duration = interval_seconds.get(interval, 3600)
         start_time = current_time - (duration * limit)
         
@@ -516,7 +516,7 @@ class BPClient(BaseExchangeClient):
         return self.make_request("GET", endpoint, params=params)
 
     def get_market_limits(self, symbol):
-        """獲取交易對的最低訂單量和價格精度"""
+        """获取交易对的最低订单量和价格精度"""
         markets_info = self.get_markets()
 
         if not isinstance(markets_info, dict) and isinstance(markets_info, list):
@@ -525,12 +525,12 @@ class BPClient(BaseExchangeClient):
                     base_asset = market_info.get('baseSymbol')
                     quote_asset = market_info.get('quoteSymbol')
                     
-                    # 從filters中獲取精度和最小訂單量信息
+                    # 从filters中获取精度和最小订单量信息
                     filters = market_info.get('filters', {})
-                    base_precision = 8  # 默認值
-                    quote_precision = 8  # 默認值
-                    min_order_size = "0"  # 默認值
-                    tick_size = "0.00000001"  # 默認值
+                    base_precision = 8  # 默认值
+                    quote_precision = 8  # 默认值
+                    min_order_size = "0"  # 默认值
+                    tick_size = "0.00000001"  # 默认值
                     
                     if 'price' in filters:
                         tick_size = filters['price'].get('tickSize', '0.00000001')
@@ -550,28 +550,28 @@ class BPClient(BaseExchangeClient):
                         'tick_size': tick_size
                     }
             
-            logger.error(f"找不到交易對 {symbol} 的信息")
+            logger.error(f"找不到交易对 {symbol} 的信息")
             return None
         else:
-            logger.error(f"無法獲取交易對信息: {markets_info}")
+            logger.error(f"无法获取交易对信息: {markets_info}")
             return None
 
     def get_positions(self, symbol=None):
-        """獲取永續合約倉位"""
+        """获取永续合约仓位"""
         endpoint = f"/api/{API_VERSION}/position"
         instruction = "positionQuery"
         params = {}
         if symbol:
             params["symbol"] = symbol
         
-        # 對於倉位查詢，404是正常情況（表示沒有倉位），所以只重試1次
+        # 对于仓位查询，404是正常情况（表示没有仓位），所以只重试1次
         result = self.make_request("GET", endpoint, self.api_key, self.secret_key, instruction, params, retry_count=1)
 
-        # 特殊處理404錯誤 - 對於倉位查詢，404表示沒有倉位，返回空列表
+        # 特殊处理404错误 - 对于仓位查询，404表示没有仓位，返回空列表
         if isinstance(result, dict) and "error" in result:
             error_msg = result["error"]
             if "404" in error_msg or "RESOURCE_NOT_FOUND" in error_msg:
-                logger.debug("倉位查詢返回404，表示沒有活躍倉位")
-                return []  # 返回空列表而不是錯誤
+                logger.debug("仓位查询返回404，表示没有活跃仓位")
+                return []  # 返回空列表而不是错误
         
         return result
