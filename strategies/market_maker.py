@@ -101,7 +101,7 @@ class MarketMaker:
         # 新增：控制挂单调整触发逻辑
         self.wait_all_filled = wait_all_filled
         self.last_trades_count = 0
-        self.force_adjust_spread = self.base_spread_percentage * 5  # 强制调整 spread 阈值（可自订）
+        self.force_adjust_spread = self.base_spread_percentage * 10  # 强制调整 spread 阈值（可自订）
         self.last_adjust_price = None  # 上次调整时的价格，初始 None 表示首次需调整
         
         # 统计属性
