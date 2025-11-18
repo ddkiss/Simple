@@ -100,13 +100,7 @@ class MarketMaker:
         
         # 新增：控制挂单调整触发逻辑
         self.wait_all_filled = wait_all_filled
-
-        # 如果使用旧逻辑（部分成交就重挂，需要记录上一次成交次数
-        if not wait_all_filled:
-            self.last_trades_count = self.trades_executed
-        else:
-            self.last_trades_count = 0  # 新逻辑不需要这个变量，占位即可
-        
+        self.last_trades_count = 0
         self.force_adjust_spread = self.base_spread_percentage * 5  # 強制調整 spread 閾值（可自訂）
         self.last_adjust_price = None  # 上次調整時的價格，初始 None 表示首次需調整
         
