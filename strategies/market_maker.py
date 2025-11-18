@@ -1,5 +1,5 @@
 """
-做市策略模塊
+做市策略模塊,全部成交才触发下一次事件
 """
 import time
 import threading
@@ -49,6 +49,7 @@ class MarketMaker:
         ws_proxy=None,
         exchange='backpack',
         exchange_config=None,
+        wait_all_filled: bool = True,
         enable_database=False
     ):
         self.api_key = api_key
@@ -96,6 +97,18 @@ class MarketMaker:
 
         if not self.db_enabled:
             logger.info("資料庫寫入功能已關閉，本次執行僅在記憶體中追蹤交易統計。")
+        
+        # 新增：控制挂单调整触发逻辑
+        self.wait_all_filled = wait_all_filled
+
+        # 如果使用旧逻辑（部分成交就重挂，需要记录上一次成交次数
+        if not wait_all_filled:
+            self.last_trades_count = self.trades_executed
+        else:
+            self.last_trades_count = 0  # 新逻辑不需要这个变量，占位即可
+        
+        self.force_adjust_spread = self.base_spread_percentage * 5  # 強制調整 spread 閾值（可自訂）
+        self.last_adjust_price = None  # 上次調整時的價格，初始 None 表示首次需調整
         
         # 統計屬性
         self.session_start_time = datetime.now()
@@ -149,6 +162,7 @@ class MarketMaker:
         self.trades_executed = 0
         self.orders_placed = 0
         self.orders_cancelled = 0
+
 
         # 風控狀態
         self._stop_trading = False
@@ -347,8 +361,8 @@ class MarketMaker:
             logger.info("使用 REST API 模式（無 WebSocket）")
             return
 
-        wait_time = 0
-        max_wait_time = 2  # 減少等待時間從 10 秒到 2 秒
+        wait_time = 2
+        max_wait_time = 10  # 減少等待時間從 10 秒到 2 秒
         check_interval = 0.2  # 減少檢查間隔從 0.5 秒到 0.2 秒
 
         while not self.ws.connected and wait_time < max_wait_time:
@@ -1297,45 +1311,26 @@ class MarketMaker:
         """獲取當前價格（優先使用WebSocket數據）"""
         # 只檢查連接狀態，不觸發重連（避免頻繁重連嘗試）
         price = None
-        if self.ws and self.ws.is_connected():
-            price = self.ws.get_current_price()
-        
-        if price is None:
-            ticker = self.client.get_ticker(self.symbol)
-            if isinstance(ticker, dict) and "error" in ticker:
-                logger.error(f"獲取價格失敗: {ticker['error']}")
-                return None
-            
-            if "lastPrice" not in ticker:
-                logger.error(f"獲取到的價格數據不完整: {ticker}")
-                return None
-            return float(ticker['lastPrice'])
+        bid_price, ask_price = self.get_market_depth()
+        price = (bid_price + ask_price) / 2
         return price
     
     def get_market_depth(self):
-        """獲取市場深度（優先使用WebSocket數據）"""
-        # 只檢查連接狀態，不觸發重連（避免頻繁重連嘗試）
-        bid_price, ask_price = None, None
-        if self.ws and self.ws.is_connected():
-            bid_price, ask_price = self.ws.get_bid_ask()
-        
-        if bid_price is None or ask_price is None:
-            order_book = self.client.get_order_book(self.symbol)
-            if isinstance(order_book, dict) and "error" in order_book:
-                logger.error(f"獲取訂單簿失敗: {order_book['error']}")
-                return None, None
-            
-            bids = order_book.get('bids', [])
-            asks = order_book.get('asks', [])
-            if not bids or not asks:
-                return None, None
-            
-            highest_bid = float(bids[0][0]) if bids else None
-            lowest_ask = float(asks[0][0]) if asks else None
-            
-            return highest_bid, lowest_ask
-        
-        return bid_price, ask_price
+        """只通过API获取市场深度（最高买价和最低卖价）"""
+        order_book = self.client.get_order_book(self.symbol)
+        if isinstance(order_book, dict) and "error" in order_book:
+            logger.error(f"獲取訂單簿失敗: {order_book['error']}")
+            return None, None
+
+        bids = order_book.get('bids', [])
+        asks = order_book.get('asks', [])
+        if not bids or not asks:
+            return None, None
+
+        highest_bid = float(bids[0][0])
+        lowest_ask = float(asks[0][0])
+
+        return highest_bid, lowest_ask
     
     def calculate_dynamic_spread(self):
         """計算動態價差基於市場情況"""
@@ -1349,11 +1344,8 @@ class MarketMaker:
         try:
             bid_price, ask_price = self.get_market_depth()
             if bid_price is None or ask_price is None:
-                current_price = self.get_current_price()
-                if current_price is None:
-                    logger.error("無法獲取價格信息，無法設置訂單")
-                    return None, None
-                mid_price = current_price
+                logger.error("無法獲取價格信息，無法設置訂單")
+                return None, None
             else:
                 mid_price = (bid_price + ask_price) / 2
             
@@ -1471,8 +1463,8 @@ class MarketMaker:
         # 獲取市場深度
         bid_price, ask_price = self.get_market_depth()
         if bid_price is None or ask_price is None:
-            bid_price = current_price * 0.998
-            ask_price = current_price * 1.002
+            bid_price = current_price * 0.999
+            ask_price = current_price * 1.001
         
         # 獲取總可用餘額（包含抵押品）
         base_available, base_total = self.get_asset_balance(self.base_asset)
@@ -1679,11 +1671,20 @@ class MarketMaker:
                 "autoLendRedeem": True,
                 "autoLend": True
             }
-            res = self.client.execute_order(order)
-            if isinstance(res, dict) and "error" in res and "POST_ONLY_TAKER" in str(res["error"]):
-                logger.info("調整買單價格並重試...")
-                order["price"] = str(round_to_tick_size(float(order["price"]) - self.tick_size, self.tick_size))
+            
+            max_retries = 6
+            retries = 0
+            while retries < max_retries:
                 res = self.client.execute_order(order)
+                if not (isinstance(res, dict) and "error" in res and "take" in str(res["error"])):
+                    break  # 成功或非 "take" 錯誤，跳出循環
+        
+                # 計算逐漸增大的調整幅度
+                adjustment = self.tick_size * 2 * (retries + 1)
+                logger.info(f"調整买单價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: -{adjustment})")
+                order["price"] = str(round_to_tick_size(float(order["price"]) - adjustment, self.tick_size))
+                retries += 1
+                time.sleep(0.1)  # 添加延遲，避免 API 頻率限制
             
             # 特殊處理資金不足錯誤
             if isinstance(res, dict) and "error" in res and "INSUFFICIENT_FUNDS" in str(res["error"]):
@@ -1723,11 +1724,20 @@ class MarketMaker:
                 "autoLendRedeem": True,
                 "autoLend": True
             }
-            res = self.client.execute_order(order)
-            if isinstance(res, dict) and "error" in res and "POST_ONLY_TAKER" in str(res["error"]):
-                logger.info("調整賣單價格並重試...")
-                order["price"] = str(round_to_tick_size(float(order["price"]) + self.tick_size, self.tick_size))
+
+            max_retries = 6
+            retries = 0
+            while retries < max_retries:
                 res = self.client.execute_order(order)
+                if not (isinstance(res, dict) and "error" in res and "take" in str(res["error"])):
+                    break  # 成功或非 "take" 錯誤，跳出循環
+        
+                # 計算逐漸增大的調整幅度
+                adjustment = self.tick_size * 2 * (retries + 1)
+                logger.info(f"調整卖单價格並重試... (嘗試 {retries+1}/{max_retries}, 調整幅度: +{adjustment})")
+                order["price"] = str(round_to_tick_size(float(order["price"]) + adjustment, self.tick_size))
+                retries += 1
+                time.sleep(0.1)  # 添加延遲，避免 API 頻率限制
             
             # 特殊處理資金不足錯誤
             if isinstance(res, dict) and "error" in res and "INSUFFICIENT_FUNDS" in str(res["error"]):
@@ -2290,6 +2300,14 @@ class MarketMaker:
         """停止做市策略"""
         logger.info("收到停止信號，正在停止做市策略...")
         self._stop_flag = True
+    
+    def _price_deviation_exceeds_spread(self, current_price: float) -> bool:
+        """檢查價格偏離是否超過閾值"""
+        if self.last_adjust_price is None:
+            return True  # 首次調整
+        deviation_pct = abs((current_price - self.last_adjust_price) / self.last_adjust_price) * 100
+        logger.debug(f"當前價格: {current_price}, 上次調整價格: {self.last_adjust_price}, 偏離: {deviation_pct:.2f}%")
+        return deviation_pct > self.force_adjust_spread
 
     def run(self, duration_seconds=3600, interval_seconds=60):
         """執行做市策略"""
@@ -2332,44 +2350,82 @@ class MarketMaker:
                     self.ws.subscribe_bookTicker()
                 if f"account.orderUpdate.{self.symbol}" not in self.ws.subscriptions:
                     self.subscribe_order_updates()
-            
+
             while time.time() - start_time < duration_seconds and not self._stop_flag:
                 iteration += 1
                 current_time = time.time()
                 logger.info(f"\n=== 第 {iteration} 次迭代 ===")
                 logger.info(f"時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                
+                td = datetime.now() - self.session_start_time
+                total_seconds = int(td.total_seconds())
+                hours = total_seconds // 3600
+                minutes = (total_seconds % 3600) // 60
+                seconds = total_seconds % 60
+                run_time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                logger.info(f"累计运行时间: {run_time}")
+            
                 # 檢查連接並在必要時重連
                 connection_status = self.check_ws_connection()
-                
+            
                 # 如果連接成功，檢查並確保所有流訂閲
                 if connection_status:
                     # 重新訂閲必要的數據流
                     self._ensure_data_streams()
-                
+            
                 # 檢查訂單成交情況
                 self.check_order_fills()
-
+            
                 # 透過 REST API 同步最新成交
                 if self.exchange in ('aster', 'lighter'):
                     self._sync_fill_history()
-
+            
                 # 檢查是否需要重平衡倉位
                 if self.need_rebalance():
                     self.rebalance_position()
-                
-                # 下限價單
-                self.place_limit_orders()
+              
+                current_price = self.get_current_price()
 
+                # === 统一触发逻辑：价格偏离 OR 成交触发 ===
+                price_deviated = self._price_deviation_exceeds_spread(current_price)
+
+                trade_triggered = False
+                trigger_reason = ""
+
+                if self.wait_all_filled:
+                    # 新逻辑：只有全部挂单被吃完才触发
+                    trade_triggered = (len(self.active_buy_orders) == 0 and len(self.active_sell_orders) == 0)
+                    if trade_triggered:
+                        trigger_reason = "所有訂單已全部成交"
+                else:
+                    # 旧逻辑：只要有新成交就触发
+                    current_count = self.trades_executed
+                    if current_count > self.last_trades_count:
+                        trade_triggered = True
+                        trigger_reason = "檢測到新成交"
+                        self.last_trades_count = current_count  # 更新计数
+
+                if trade_triggered or price_deviated:
+                    if trade_triggered and price_deviated:
+                        logger.info(f"{trigger_reason}，同時價格偏離 {self.force_adjust_spread:.2f}% ，執行訂單調整")
+                    elif trade_triggered:
+                        logger.info(f"{trigger_reason}，執行訂單調整")
+                    else:
+                        logger.info(f"價格偏離超過 {self.force_adjust_spread:.2f}% ，強制執行訂單調整")
+
+                    self.place_limit_orders()          # 取消旧单 + 重新挂单
+                    self.last_adjust_price = current_price
+                else:
+                    logger.info("無觸發條件（未全部成交且價格偏離不足），維持現有訂單不動")      
+            
                 # 計算PnL並輸出簡化統計
                 pnl_data = self.calculate_pnl()
                 self.estimate_profit(pnl_data)
-
+            
                 # 定期打印交易統計報表
                 if current_time - last_report_time >= report_interval:
                     self.print_trading_stats()
                     last_report_time = current_time
-
+            
                 (
                     realized_pnl,
                     unrealized_pnl,
@@ -2379,15 +2435,15 @@ class MarketMaker:
                     _session_fees,
                     _session_net_pnl,
                 ) = pnl_data
-
+            
                 if self.check_stop_conditions(realized_pnl, unrealized_pnl, session_realized_pnl):
                     self._stop_trading = True
                     logger.warning("觸發風控條件，提前結束策略迭代")
                     break
-
+            
                 wait_time = interval_seconds
                 logger.info(f"等待 {wait_time} 秒後進行下一次迭代...")
-                time.sleep(wait_time)
+                time.sleep(wait_time)                 
 
             # 結束運行時打印最終報表
             logger.info("\n=== 做市策略運行結束 ===")
