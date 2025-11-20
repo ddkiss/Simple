@@ -32,6 +32,7 @@ def parse_arguments():
     parser.add_argument('--spread', type=float, help='价差百分比 (例如: 0.5)')
     parser.add_argument('--quantity', type=float, help='订单数量 (可选)')
     parser.add_argument('--max-orders', type=int, default=3, help='每侧最大订单数量 (默认: 3)')
+    parser.add_argument('--force_adjust_spread', type=float, default=None, help='强制调整价差数值% (例如 0.0005)')
     # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←← 新增：全部成交才重挂的开关 ←←←←←←←←←←←←←←←←←←←←←
     parser.add_argument(
         '--wait-all-filled',
@@ -336,6 +337,7 @@ def main():
                         exchange=exchange,
                         exchange_config=exchange_config,
                         wait_all_filled=args.wait_all_filled,
+                        force_adjust_spread=args.force_adjust_spread  # [新增] 传入命令行获取的数值
                         enable_database=args.enable_db
                     )
 
@@ -396,6 +398,7 @@ def main():
                         exchange=exchange,
                         exchange_config=exchange_config,
                         wait_all_filled=args.wait_all_filled,
+                        force_adjust_spread=args.force_adjust_spread  # [新增] 传入命令行获取的数值
                         enable_database=args.enable_db
                     )
             
