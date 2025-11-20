@@ -50,7 +50,8 @@ class MarketMaker:
         exchange='backpack',
         exchange_config=None,
         wait_all_filled: bool = True,
-        enable_database=False
+        enable_database=False,
+        force_adjust_spread: Optional[float] = None  # [新增] 添加这个参数
     ):
         self.api_key = api_key
         self.secret_key = secret_key
@@ -99,6 +100,7 @@ class MarketMaker:
             logger.info("数据库写入功能已关闭，本次执行仅在内存中追踪交易统计。")
         
         # 新增：控制挂单调整触发逻辑
+        
         self.wait_all_filled = wait_all_filled
         self.last_trades_count = 0
         self.last_adjust_price = None  # 上次调整时的价格，初始 None 表示首次需调整
