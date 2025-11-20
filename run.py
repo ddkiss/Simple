@@ -337,7 +337,7 @@ def main():
                         exchange=exchange,
                         exchange_config=exchange_config,
                         wait_all_filled=args.wait_all_filled,
-                        force_adjust_spread=args.force_adjust_spread  # [新增] 传入命令行获取的数值
+                        force_adjust_spread=args.force_adjust_spread,  # [新增] 传入命令行获取的数值
                         enable_database=args.enable_db
                     )
 
@@ -398,7 +398,7 @@ def main():
                         exchange=exchange,
                         exchange_config=exchange_config,
                         wait_all_filled=args.wait_all_filled,
-                        force_adjust_spread=args.force_adjust_spread  # [新增] 传入命令行获取的数值
+                        force_adjust_spread=args.force_adjust_spread,  # [新增] 传入命令行获取的数值
                         enable_database=args.enable_db
                     )
             
