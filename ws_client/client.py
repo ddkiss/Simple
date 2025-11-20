@@ -1,5 +1,5 @@
 """
-WebSocket客户端模塊
+WebSocket客户端模块
 """
 import json
 import time
@@ -22,12 +22,12 @@ class BackpackWebSocket:
         初始化WebSocket客户端
         
         Args:
-            api_key: API密鑰
-            secret_key: API密鑰
-            symbol: 交易對符號
-            on_message_callback: 消息回調函數
-            auto_reconnect: 是否自動重連
-            proxy:  wss代理 支持格式為 http://user:pass@host:port/ 或者 http://host:port
+            api_key: API密钥
+            secret_key: API密钥
+            symbol: 交易对符号
+            on_message_callback: 消息回调函数
+            auto_reconnect: 是否自动重连
+            proxy:  wss代理 支持格式为 http://user:pass@host:port/ 或者 http://host:port
 
         """
         self.api_key = api_key
@@ -41,10 +41,10 @@ class BackpackWebSocket:
         self.ask_price = None
         self.orderbook = {"bids": [], "asks": []}
         self.order_updates = []
-        self.historical_prices = []  # 儲存歷史價格用於計算波動率
-        self.max_price_history = 100  # 最多儲存的價格數量
+        self.historical_prices = []  # 储存历史价格用于计算波动率
+        self.max_price_history = 100  # 最多储存的价格数量
         
-        # 重連相關參數
+        # 重连相关参数
         self.auto_reconnect = auto_reconnect
         self.reconnect_delay = 1
         self.max_reconnect_delay = 1800
@@ -54,39 +54,39 @@ class BackpackWebSocket:
         self.running = False
         self.ws_thread = None
         
-        # 記錄已訂閲的頻道
+        # 记录已订阅的频道
         self.subscriptions = []
         
-        # 添加WebSocket執行緒鎖
+        # 添加WebSocket线程锁
         self.ws_lock = threading.Lock()
         
-        # 添加心跳檢測
+        # 添加心跳检测
         self.last_heartbeat = time.time()
         self.heartbeat_interval = 30
         self.heartbeat_thread = None
 
-        # 添加代理參數
+        # 添加代理参数
         self.proxy = proxy
         
-        # 客户端緩存，避免重複創建實例
+        # 客户端缓存，避免重复创建实例
         self._client_cache = {}
         
-        # 添加重連中標誌，避免多次重連
+        # 添加重连中标志，避免多次重连
         self.reconnecting = False
 
-        # API 備援方案相關屬性
+        # API 备援方案相关属性
         self.api_fallback_thread = None
         self.api_fallback_active = False
         self.api_poll_interval = 2  # 秒
 
-        # REST 訂單更新追蹤
+        # REST 订单更新追踪
         self._fallback_bootstrapped = False
         self._seen_fill_ids = deque(maxlen=200)
         self._seen_fill_id_set = set()
         self._last_fill_timestamp = 0
 
     def _get_client(self):
-        """獲取緩存的客户端實例，避免重複創建"""
+        """获取缓存的客户端实例，避免重复创建"""
         cache_key = "public"
         if cache_key not in self._client_cache:
             self._client_cache[cache_key] = BPClient({
@@ -96,18 +96,18 @@ class BackpackWebSocket:
         return self._client_cache[cache_key]
     
     def _start_api_fallback(self):
-        """啟動使用 REST API 的備援模式"""
+        """启动使用 REST API 的备援模式"""
         if self.api_fallback_active:
             return
 
-        logger.warning("WebSocket 異常，啟動 API 備援模式以持續獲取數據")
+        logger.warning("WebSocket 异常，启动 API 备援模式以持续获取数据")
         self.api_fallback_active = True
         self._fallback_bootstrapped = False
         self.api_fallback_thread = threading.Thread(target=self._api_fallback_loop, daemon=True)
         self.api_fallback_thread.start()
 
     def _stop_api_fallback(self):
-        """停止 REST API 備援模式"""
+        """停止 REST API 备援模式"""
         if not self.api_fallback_active:
             return
 
@@ -122,7 +122,7 @@ class BackpackWebSocket:
         self.api_fallback_thread = None
 
     def _api_fallback_loop(self):
-        """循環透過 REST API 更新行情資訊"""
+        """循环通过 REST API 更新行情信息"""
         client = self._get_client()
 
         while self.running and self.api_fallback_active:
@@ -183,24 +183,24 @@ class BackpackWebSocket:
                         }
                         self.on_message_callback(f"bookTicker.{self.symbol}", ticker_event)
 
-                # 若仍未獲得價格資訊，嘗試以訂單簿估算
+                # 若仍未获得价格信息，尝试以订单簿估算
                 if self.last_price is None and self.bid_price and self.ask_price:
                     self.last_price = (self.bid_price + self.ask_price) / 2
                     self.add_price_to_history(self.last_price)
 
-                # 透過 REST 補充訂單成交通知
+                # 通过 REST 补充订单成交通知
                 normalised_fills = self._normalise_fill_history_response(fills)
                 if normalised_fills:
                     self._process_rest_fill_updates(normalised_fills)
 
             except Exception as e:
-                logger.error(f"API 備援獲取數據時出錯: {e}")
+                logger.error(f"API 备援获取数据时出错: {e}")
 
-            # 控制輪詢頻率，避免觸發限速
+            # 控制轮询频率，避免触发限速
             time.sleep(self.api_poll_interval)
 
     def _normalise_fill_history_response(self, response):
-        """解析 REST 回傳的成交列表"""
+        """解析 REST 返回的成交列表"""
         if isinstance(response, dict) and "error" in response:
             return []
 
@@ -276,7 +276,7 @@ class BackpackWebSocket:
         return [fill for fill in fills if fill["order_id"] and fill["quantity"]]
 
     def _process_rest_fill_updates(self, fills):
-        """處理 REST 備援獲取到的成交資訊"""
+        """处理 REST 备援获取到的成交信息"""
         fills = sorted(fills, key=lambda item: item.get("timestamp", 0))
 
         if not self._fallback_bootstrapped:
@@ -346,28 +346,28 @@ class BackpackWebSocket:
         }
 
         logger.info(
-            f"REST備援檢測到成交: 订单 {event['i']} | 方向 {event['S']} | 数量 {event['l']} | 价格 {event['L']}"
+            f"REST备援检测到成交: 订单 {event['i']} | 方向 {event['S']} | 数量 {event['l']} | 价格 {event['L']}"
         )
 
         self.on_message_callback(f"account.orderUpdate.{self.symbol}", event)
 
     def initialize_orderbook(self):
-        """通過REST API獲取訂單簿初始快照"""
+        """通过REST API获取订单簿初始快照"""
         try:
-            # 使用REST API獲取完整訂單簿
+            # 使用REST API获取完整订单簿
             order_book = self._get_client().get_order_book(self.symbol, 100)  # 增加深度
             if isinstance(order_book, dict) and "error" in order_book:
                 logger.error(f"订单簿初始化失败: {order_book['error']}")
                 return False
             
-            # 重置並填充orderbook數據結構
+            # 重置并填充orderbook数据结构
             bids = order_book.get("bids", [])
             asks = order_book.get("asks", [])
             self.orderbook = {"bids": bids, "asks": asks}
             
             logger.info(f"订单薄初始化成功: {len(self.orderbook['bids'])} 个买单, {len(self.orderbook['asks'])} 个卖单")
             
-            # 初始化最高買價和最低賣價
+            # 初始化最高买价和最低卖价
             if self.orderbook["bids"]:
                 self.bid_price = self.orderbook["bids"][0][0]
             if self.orderbook["asks"]:
@@ -378,53 +378,53 @@ class BackpackWebSocket:
             
             return True
         except Exception as e:
-            logger.error(f"初始化訂單簿時出錯: {e}")
+            logger.error(f"初始化订单簿时出错: {e}")
             return False
     
     def add_price_to_history(self, price):
-        """添加價格到歷史記錄用於計算波動率"""
+        """添加价格到历史记录用于计算波动率"""
         if price:
             self.historical_prices.append(price)
-            # 保持歷史記錄在設定長度內
+            # 保持历史记录在设定长度内
             if len(self.historical_prices) > self.max_price_history:
                 self.historical_prices = self.historical_prices[-self.max_price_history:]
     
     def get_volatility(self, window=20):
-        """獲取當前波動率"""
+        """获取当前波动率"""
         return calculate_volatility(self.historical_prices, window)
     
     def start_heartbeat(self):
-        """開始心跳檢測線程"""
+        """开始心跳检测线程"""
         if self.heartbeat_thread is None or not self.heartbeat_thread.is_alive():
             self.heartbeat_thread = threading.Thread(target=self._heartbeat_check, daemon=True)
             self.heartbeat_thread.start()
     
     def _heartbeat_check(self):
-        """定期檢查WebSocket連接狀態並在需要時重連"""
+        """定期检查WebSocket连接状态并在需要时重连"""
         while self.running:
             current_time = time.time()
             
-            # 檢查是否在冷卻期，如果是則跳過心跳檢測
+            # 检查是否在冷却期，如果是则跳过心跳检测
             if self.reconnect_cooldown_until and current_time < self.reconnect_cooldown_until:
                 remaining_cooldown = int(self.reconnect_cooldown_until - current_time)
-                logger.debug(f"WebSocket 處於冷卻期，剩餘 {remaining_cooldown} 秒，使用 API 備援模式")
+                logger.debug(f"WebSocket 处于冷却期，剩余 {remaining_cooldown} 秒，使用 API 备援模式")
                 time.sleep(5)
                 continue
             
             time_since_last_heartbeat = current_time - self.last_heartbeat
             
             if time_since_last_heartbeat > self.heartbeat_interval * 2:
-                logger.warning(f"心跳檢測超時 ({time_since_last_heartbeat:.1f}秒)，嘗試重新連接")
-                # 使用非阻塞方式觸發重連
+                logger.warning(f"心跳检测超时 ({time_since_last_heartbeat:.1f}秒)，尝试重新连接")
+                # 使用非阻塞方式触发重连
                 threading.Thread(target=self._trigger_reconnect, daemon=True).start()
                 
-            time.sleep(5)  # 每5秒檢查一次
+            time.sleep(5)  # 每5秒检查一次
     
     def _trigger_reconnect(self):
-        """非阻塞觸發重連"""
+        """非阻塞触发重连"""
         current_time = time.time()
         if self.reconnect_cooldown_until and current_time < self.reconnect_cooldown_until:
-            logger.debug("重連尚在冷卻期，跳過此次請求")
+            logger.debug("重连尚在冷却期，跳过此次请求")
             return
 
         if self.reconnect_cooldown_until and current_time >= self.reconnect_cooldown_until:
@@ -435,7 +435,7 @@ class BackpackWebSocket:
             self.reconnect()
         
     def connect(self):
-        """建立WebSocket連接"""
+        """建立WebSocket连接"""
         try:
             self.running = True
             self.reconnect_attempts = 0
@@ -456,17 +456,17 @@ class BackpackWebSocket:
             self.ws_thread.daemon = True
             self.ws_thread.start()
             
-            # 啟動心跳檢測
+            # 启动心跳检测
             self.start_heartbeat()
         except Exception as e:
-            logger.error(f"初始化WebSocket連接時出錯: {e}")
+            logger.error(f"初始化WebSocket连接时出错: {e}")
             self._start_api_fallback()
     
     def ws_run_forever(self):
-        """WebSocket運行循環 - 修復版本"""
+        """WebSocket运行循环 - 修复版本"""
         try:
             if hasattr(self.ws, 'sock') and self.ws.sock and self.ws.sock.connected:
-                logger.debug("發現socket已經打開，跳過run_forever")
+                logger.debug("发现socket已经打开，跳过run_forever")
                 return
 
             http_proxy_host = None
@@ -475,10 +475,10 @@ class BackpackWebSocket:
             proxy_type = None
 
             if self.proxy:
-                # 使用標準庫 urlparse 進行可靠的解析
+                # 使用标准库 urlparse 进行可靠的解析
                 parsed_proxy = urlparse(self.proxy)
                 
-                # 建立安全的日誌訊息，隱藏密碼
+                # 建立安全的日志信息，隐藏密码
                 safe_proxy_display = f"{parsed_proxy.scheme}://{parsed_proxy.hostname}:{parsed_proxy.port}"
                 if parsed_proxy.username:
                     safe_proxy_display = f"{parsed_proxy.scheme}://{parsed_proxy.username}:***@{parsed_proxy.hostname}:{parsed_proxy.port}"
@@ -489,10 +489,10 @@ class BackpackWebSocket:
                 http_proxy_port = parsed_proxy.port
                 if parsed_proxy.username and parsed_proxy.password:
                     http_proxy_auth = (parsed_proxy.username, parsed_proxy.password)
-                # 支援 http, socks4, socks5 代理
+                # 支持 http, socks4, socks5 代理
                 proxy_type = parsed_proxy.scheme if parsed_proxy.scheme in ['http', 'socks4', 'socks5'] else 'http'
                 
-            # 將解析後的參數傳遞給 run_forever
+            # 将解析后的参数传递给 run_forever
             self.ws.run_forever(
                 ping_interval=self.heartbeat_interval,
                 ping_timeout=10,
@@ -505,22 +505,22 @@ class BackpackWebSocket:
         except Exception as e:
             logger.error(f"WebSocket运行时错误: {e}")
         finally:
-            logger.debug("WebSocket run_forever 執行結束")
+            logger.debug("WebSocket run_forever 执行结束")
     
     def on_pong(self, ws, message):
-        """處理pong響應"""
+        """处理pong响应"""
         self.last_heartbeat = time.time()
         
     def reconnect(self):
-        """完全斷開並重新建立WebSocket連接 - 修復版本"""
-        # 防止多次重連
+        """完全断开并重新建立WebSocket连接 - 修复版本"""
+        # 防止多次重连
         if self.reconnecting:
-            logger.debug("重連已在進行中，跳過此次重連請求")
+            logger.debug("重连已在进行中，跳过此次重连请求")
             return False
 
         current_time = time.time()
         if self.reconnect_cooldown_until and current_time < self.reconnect_cooldown_until:
-            logger.debug("重連尚未解除冷卻，跳過此次重連請求")
+            logger.debug("重连尚未解除冷却，跳过此次重连请求")
             return False
 
         with self.ws_lock:
@@ -529,7 +529,7 @@ class BackpackWebSocket:
                 cooldown_seconds = max(self.max_reconnect_delay, 60)
                 self.reconnect_cooldown_until = time.time() + cooldown_seconds
                 self.last_heartbeat = time.time()
-                logger.warning(f"已启动 {cooldown_seconds} 秒冷卻，將继续使用后备模式")
+                logger.warning(f"已启动 {cooldown_seconds} 秒冷却，将继续使用后备模式")
                 self._start_api_fallback()
                 return False
 
@@ -540,18 +540,18 @@ class BackpackWebSocket:
             logger.info(f"尝试第 {self.reconnect_attempts} 次连接，等待 {delay} 秒...")
             time.sleep(delay)
             
-            # 確保完全斷開連接前先標記連接狀態
+            # 确保完全断开连接前先标记连接状态
             self.connected = False
             
-            # 優雅關閉現有連接
+            # 优雅关闭现有连接
             self._force_close_connection()
             
-            # 重置所有相關狀態
+            # 重置所有相关状态
             self.ws_thread = None
-            self.subscriptions = []  # 清空訂閲列表，以便重新訂閴
+            self.subscriptions = []  # 清空订阅列表，以便重新订阅
             
             try:
-                # 創建全新的WebSocket連接
+                # 创建全新的WebSocket连接
                 ws.enableTrace(False)
                 self.ws = ws.WebSocketApp(
                     WS_URL,
@@ -563,12 +563,12 @@ class BackpackWebSocket:
                     on_pong=self.on_pong
                 )
                 
-                # 創建新線程
+                # 创建新线程
                 self.ws_thread = threading.Thread(target=self.ws_run_forever)
                 self.ws_thread.daemon = True
                 self.ws_thread.start()
 
-                # 更新最後心跳時間，避免重連後立即觸發心跳檢測
+                # 更新最后心跳时间，避免重连后立即触发心跳检测
                 self.last_heartbeat = time.time()
                 self.reconnect_cooldown_until = 0.0
 
@@ -584,21 +584,21 @@ class BackpackWebSocket:
                 return False
     
     def _force_close_connection(self):
-        """強制關閉現有連接"""
+        """强制关闭现有连接"""
         try:
-            # 完全斷開並清理之前的WebSocket連接
+            # 完全断开并清理之前的WebSocket连接
             if self.ws:
                 try:
-                    # 顯式設置內部標記表明這是用户主動關閉
+                    # 显式设置内部标记表明这是用户主动关闭
                     if hasattr(self.ws, '_closed_by_me'):
                         self.ws._closed_by_me = True
                     
-                    # 關閉WebSocket
+                    # 关闭WebSocket
                     self.ws.close()
                     if hasattr(self.ws, 'keep_running'):
                         self.ws.keep_running = False
                     
-                    # 強制關閉socket
+                    # 强制关闭socket
                     if hasattr(self.ws, 'sock') and self.ws.sock:
                         try:
                             self.ws.sock.close()
@@ -610,24 +610,24 @@ class BackpackWebSocket:
                 
                 self.ws = None
                 
-            # 處理舊線程 - 使用較短的超時時間
+            # 处理旧线程 - 使用较短的超时时间
             if self.ws_thread and self.ws_thread.is_alive():
                 try:
-                    # 不要無限等待線程結束
+                    # 不要无限等待线程结束
                     self.ws_thread.join(timeout=1.0)
                     if self.ws_thread.is_alive():
-                        logger.warning("舊線程未能在超時時間內結束，但繼續重連過程")
+                        logger.warning("旧线程未能在超时时间内结束，但继续重连过程")
                 except Exception as e:
                     logger.debug(f"等待线程中止失败: {e}")
             
-            # 給系統少量時間清理資源
+            # 给系统少量时间清理资源
             time.sleep(0.5)
             
         except Exception as e:
             logger.error(f"强制关闭连接出错: {e}")
         
     def on_ping(self, ws, message):
-        """處理ping消息"""
+        """处理ping消息"""
         try:
             self.last_heartbeat = time.time()
             if ws and hasattr(ws, 'sock') and ws.sock:
@@ -638,23 +638,23 @@ class BackpackWebSocket:
             logger.debug(f"ping失败: {e}")
         
     def on_open(self, ws):
-        """WebSocket打開時的處理"""
+        """WebSocket打开时的处理"""
         logger.info("WebSocket链接已建立")
         self.connected = True
         self.reconnect_attempts = 0
         self.reconnecting = False
         self.last_heartbeat = time.time()
         
-        # 停止 API 備援模式
+        # 停止 API 备援模式
         self._stop_api_fallback()
 
-        # 添加短暫延遲確保連接穩定
+        # 添加短暂延迟确保连接稳定
         time.sleep(0.5)
         
-        # 初始化訂單簿
+        # 初始化订单簿
         orderbook_initialized = self.initialize_orderbook()
         
-        # 如果初始化成功，訂閲深度和行情數據
+        # 如果初始化成功，订阅深度和行情数据
         if orderbook_initialized:
             if "bookTicker" in self.subscriptions or not self.subscriptions:
                 self.subscribe_bookTicker()
@@ -662,14 +662,14 @@ class BackpackWebSocket:
             if "depth" in self.subscriptions or not self.subscriptions:
                 self.subscribe_depth()
         
-        # 重新訂閲私有訂單更新流
+        # 重新订阅私有订单更新流
         for sub in self.subscriptions:
             if sub.startswith("account."):
                 self.private_subscribe(sub)
     
     def subscribe_bookTicker(self):
-        """訂閲最優價格"""
-        logger.info(f"訂閲 {self.symbol} 的bookTicker...")
+        """订阅最优价格"""
+        logger.info(f"订阅 {self.symbol} 的bookTicker...")
         if not self.connected or not self.ws:
             logger.warning("WebSocket未连接，无法订阅bookTicker")
             return False
@@ -684,12 +684,12 @@ class BackpackWebSocket:
                 self.subscriptions.append("bookTicker")
             return True
         except Exception as e:
-            logger.error(f"訂閴bookTicker失敗: {e}")
+            logger.error(f"订阅bookTicker失败: {e}")
             return False
     
     def subscribe_depth(self):
-        """訂閴深度信息"""
-        logger.info(f"訂閴 {self.symbol} 的深度信息...")
+        """订阅深度信息"""
+        logger.info(f"订阅 {self.symbol} 的深度信息...")
         if not self.connected or not self.ws:
             logger.warning("WebSocket未连接，无法订阅市场深度信息。")
             return False
@@ -704,11 +704,11 @@ class BackpackWebSocket:
                 self.subscriptions.append("depth")
             return True
         except Exception as e:
-            logger.error(f"訂閴深度信息失敗: {e}")
+            logger.error(f"订阅深度信息失败: {e}")
             return False
     
     def private_subscribe(self, stream):
-        """訂閴私有數據流"""
+        """订阅私有数据流"""
         if not self.connected or not self.ws:
             logger.warning("WebSocket未连接，无法订阅私有流")
             return False
@@ -739,11 +739,11 @@ class BackpackWebSocket:
             return False
     
     def on_message(self, ws, message):
-        """處理WebSocket消息"""
+        """处理WebSocket消息"""
         try:
             data = json.loads(message)
             
-            # 處理ping pong消息
+            # 处理ping pong消息
             if isinstance(data, dict) and data.get("ping"):
                 pong_message = {"pong": data.get("ping")}
                 if self.ws and self.connected:
@@ -755,21 +755,21 @@ class BackpackWebSocket:
                 stream = data["stream"]
                 event_data = data["data"]
                 
-                # 處理bookTicker
+                # 处理bookTicker
                 if stream.startswith("bookTicker."):
                     if 'b' in event_data and 'a' in event_data:
                         self.bid_price = float(event_data['b'])
                         self.ask_price = float(event_data['a'])
                         self.last_price = (self.bid_price + self.ask_price) / 2
-                        # 記錄歷史價格用於計算波動率
+                        # 记录历史价格用于计算波动率
                         self.add_price_to_history(self.last_price)
                 
-                # 處理depth
+                # 处理depth
                 elif stream.startswith("depth."):
                     if 'b' in event_data and 'a' in event_data:
                         self._update_orderbook(event_data)
                 
-                # 訂單更新數據流
+                # 订单更新数据流
                 elif stream.startswith("account.orderUpdate."):
                     self.order_updates.append(event_data)
                     
@@ -780,19 +780,19 @@ class BackpackWebSocket:
             logger.error(f"处理ws消息出错: {e}")
     
     def _update_orderbook(self, data):
-        """更新訂單簿（優化處理速度）"""
-        # 處理買單更新
+        """更新订单簿（优化处理速度）"""
+        # 处理买单更新
         if 'b' in data:
             for bid in data['b']:
                 price = float(bid[0])
                 quantity = float(bid[1])
                 
-                # 使用二分查找來優化插入位置查找
+                # 使用二分查找来优化插入位置查找
                 if quantity == 0:
-                    # 移除價位
+                    # 移除价位
                     self.orderbook["bids"] = [b for b in self.orderbook["bids"] if b[0] != price]
                 else:
-                    # 先查找是否存在相同價位
+                    # 先查找是否存在相同价位
                     found = False
                     for i, b in enumerate(self.orderbook["bids"]):
                         if b[0] == price:
@@ -800,23 +800,23 @@ class BackpackWebSocket:
                             found = True
                             break
                     
-                    # 如果不存在，插入並保持排序
+                    # 如果不存在，插入并保持排序
                     if not found:
                         self.orderbook["bids"].append([price, quantity])
-                        # 按價格降序排序
+                        # 按价格降序排序
                         self.orderbook["bids"] = sorted(self.orderbook["bids"], key=lambda x: x[0], reverse=True)
         
-        # 處理賣單更新
+        # 处理卖单更新
         if 'a' in data:
             for ask in data['a']:
                 price = float(ask[0])
                 quantity = float(ask[1])
                 
                 if quantity == 0:
-                    # 移除價位
+                    # 移除价位
                     self.orderbook["asks"] = [a for a in self.orderbook["asks"] if a[0] != price]
                 else:
-                    # 先查找是否存在相同價位
+                    # 先查找是否存在相同价位
                     found = False
                     for i, a in enumerate(self.orderbook["asks"]):
                         if a[0] == price:
@@ -824,26 +824,26 @@ class BackpackWebSocket:
                             found = True
                             break
                     
-                    # 如果不存在，插入並保持排序
+                    # 如果不存在，插入并保持排序
                     if not found:
                         self.orderbook["asks"].append([price, quantity])
-                        # 按價格升序排序
+                        # 按价格升序排序
                         self.orderbook["asks"] = sorted(self.orderbook["asks"], key=lambda x: x[0])
     
     def on_error(self, ws, error):
-        """處理WebSocket錯誤"""
+        """处理WebSocket错误"""
         logger.error(f"WebSocket发生错误: {error}")
-        self.last_heartbeat = 0  # 強制觸發重連
+        self.last_heartbeat = 0  # 强制触发重连
 
         self._start_api_fallback()
     
     def on_close(self, ws, close_status_code, close_msg):
-        """處理WebSocket關閉"""
+        """处理WebSocket关闭"""
         previous_connected = self.connected
         self.connected = False
         logger.info(f"WebSocket链接已经关闭: {close_msg if close_msg else 'No message'} (状态码: {close_status_code if close_status_code else 'None'})")
         
-        # 清理當前socket資源
+        # 清理当前socket资源
         if hasattr(ws, 'sock') and ws.sock:
             try:
                 ws.sock.close()
@@ -856,19 +856,19 @@ class BackpackWebSocket:
             self._start_api_fallback()
         elif previous_connected and self.running and self.auto_reconnect and not self.reconnecting:
             logger.info("WebSocket非正常关闭，重连中")
-            # 使用線程觸發重連，避免在回調中直接重連
+            # 使用线程触发重连，避免在回调中直接重连
             threading.Thread(target=self._trigger_reconnect, daemon=True).start()
             self._start_api_fallback()
     
     def close(self):
-        """完全關閉WebSocket連接"""
-        logger.info("主動關閉WebSocket連接...")
+        """完全关闭WebSocket连接"""
+        logger.info("主动关闭WebSocket连接...")
         self.running = False
         self.connected = False
         self.reconnecting = False
         self.reconnect_cooldown_until = 0.0
         
-        # 停止心跳檢測線程
+        # 停止心跳检测线程
         if self.heartbeat_thread and self.heartbeat_thread.is_alive():
             try:
                 self.heartbeat_thread.join(timeout=1)
@@ -876,31 +876,31 @@ class BackpackWebSocket:
                 pass
         self.heartbeat_thread = None
         
-        # 強制關閉連接
+        # 强制关闭连接
         self._force_close_connection()
         
-        # 重置訂閴狀態
+        # 重置订阅状态
         self.subscriptions = []
 
-        # 確保停止 API 備援
+        # 确保停止 API 备援
         self._stop_api_fallback()
         
-        logger.info("WebSocket連接已完全關閉")
+        logger.info("WebSocket连接已完全关闭")
     
     def get_current_price(self):
-        """獲取當前價格"""
+        """获取当前价格"""
         return self.last_price
     
     def get_bid_ask(self):
-        """獲取買賣價"""
+        """获取买卖价"""
         return self.bid_price, self.ask_price
     
     def get_orderbook(self):
-        """獲取訂單簿"""
+        """获取订单簿"""
         return self.orderbook
 
     def is_connected(self):
-        """檢查連接狀態"""
+        """检查连接状态"""
         if not self.connected:
             return False
         if not self.ws:
@@ -908,14 +908,14 @@ class BackpackWebSocket:
         if not hasattr(self.ws, 'sock') or not self.ws.sock:
             return False
         
-        # 檢查socket是否連接
+        # 检查socket是否连接
         try:
             return self.ws.sock.connected
         except:
             return False
     
     def get_liquidity_profile(self, depth_percentage=0.01):
-        """分析市場流動性特徵"""
+        """分析市场流动性特征"""
         if not self.orderbook["bids"] or not self.orderbook["asks"]:
             return None
         
@@ -923,18 +923,18 @@ class BackpackWebSocket:
         if not mid_price:
             return None
         
-        # 計算價格範圍
+        # 计算价格范围
         min_price = mid_price * (1 - depth_percentage)
         max_price = mid_price * (1 + depth_percentage)
         
-        # 分析買賣單流動性
+        # 分析买卖单流动性
         bid_volume = sum(qty for price, qty in self.orderbook["bids"] if price >= min_price)
         ask_volume = sum(qty for price, qty in self.orderbook["asks"] if price <= max_price)
         
-        # 計算買賣比例
+        # 计算买卖比例
         ratio = bid_volume / ask_volume if ask_volume > 0 else float('inf')
         
-        # 買賣壓力差異
+        # 买卖压力差异
         imbalance = (bid_volume - ask_volume) / (bid_volume + ask_volume) if (bid_volume + ask_volume) > 0 else 0
         
         return {
@@ -946,10 +946,10 @@ class BackpackWebSocket:
         }
     
     def check_and_reconnect_if_needed(self):
-        """檢查連接狀態並在需要時重連 - 供外部調用"""
+        """检查连接状态并在需要时重连 - 供外部调用"""
         current_time = time.time()
         
-        # 如果在冷卻期內，確保 API 備援模式激活，但不觸發重連
+        # 如果在冷却期内，确保 API 备援模式激活，但不触发重连
         if self.reconnect_cooldown_until and current_time < self.reconnect_cooldown_until:
             if not self.is_connected() and not self.api_fallback_active:
                 remaining_cooldown = int(self.reconnect_cooldown_until - current_time)
@@ -957,17 +957,16 @@ class BackpackWebSocket:
                 self._start_api_fallback()
             return self.is_connected()
 
-        # 冷卻期已結束，重置重連計數器
+        # 冷却期已结束，重置重连计数器
         if self.reconnect_cooldown_until and current_time >= self.reconnect_cooldown_until:
             self.reconnect_attempts = 0
             self.reconnect_cooldown_until = 0.0
             logger.info("冷却期结束，重置尝试次数")
 
-        # 非冷卻期，檢查連接並觸發重連
+        # 非冷却期，检查连接并触发重连
         if not self.is_connected() and not self.reconnecting:
             logger.info("检测到ws链接断开，重试...")
             threading.Thread(target=self._trigger_reconnect, daemon=True).start()
             self._start_api_fallback()
 
         return self.is_connected()
-
