@@ -57,7 +57,7 @@ def parse_arguments():
     parser.add_argument('--inventory-skew', type=float, default=0.0, help='永续仓位偏移调整系数 (0-1)')
     parser.add_argument('--stop-loss', type=float, help='永续仓位止损触发值 (以报价资产计价)')
     parser.add_argument('--take-profit', type=float, help='永续仓位止盈触发值 (以报价资产计价)')
-    parser.add_argument('--strategy', choices=['standard', 'maker_hedge', 'grid', 'perp_grid'], default='standard', help='策略选择 (standard, maker_hedge, grid 或 perp_grid)')
+    parser.add_argument('--strategy', choices=['standard', 'maker_hedge', 'grid', 'perp_grid', 'tick_scalper_v2'], default='standard', help='策略选择 (standard, maker_hedge,tick_scalper_v2, grid 或 perp_grid)')
 
     # 网格策略参数
     parser.add_argument('--grid-upper', type=float, help='网格上限价格')
