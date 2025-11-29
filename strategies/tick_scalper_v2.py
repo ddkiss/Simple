@@ -34,9 +34,9 @@ class SmartTickScalper(MarketMaker):
         self.hold_start_time = 0
         
         # --- 核心参数 (可在代码中调整) ---
-        self.balance_pct = 0.95        # 资金利用率
-        self.max_hold_seconds = 60     # 持仓超时止损
-        self.stop_loss_pct = 0.005     # 价格止损幅度
+        self.balance_pct = 0.85        # 资金利用率
+        self.max_hold_seconds = 180     # 持仓超时止损
+        self.stop_loss_pct = 0.007     # 价格止损幅度
         self.chase_bid = True          # 开启买单追价
         self.chase_ask = True          # 开启卖单追价
         
