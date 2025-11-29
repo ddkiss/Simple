@@ -301,7 +301,7 @@ def main():
                 
                 logger.info(f"启动 Tick Scalper V2 ({market_type}) | 交易对: {args.symbol}")
                 
-                strategy = SmartTickScalper(
+                market_maker = SmartTickScalper(
                     api_key=api_key,
                     secret_key=secret_key,
                     symbol=args.symbol,
