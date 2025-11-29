@@ -1,10 +1,8 @@
 """
-Smart Tick Scalper V2 (现货/合约 通用版)
-策略核心：
-1. 极速 Maker：始终挂买一价买入，挂卖一价卖出。
-2. 零 Taker：严禁市价单，止损也用 Limit 单排队。
-3. 动态追单：防止踏空上涨，防止下跌被深套。
-4. 通用支持：自动识别现货或合约，读取真实持仓。
+Smart Tick Scalper V2 (修复版)
+修复说明：
+1. 强制每轮循环都执行逻辑，解决“挂单后不动”的问题。
+2. 修复错误日志被吞掉的问题，现在会显示具体的下单失败原因。
 """
 from __future__ import annotations
 import time
@@ -24,6 +22,9 @@ class SmartTickScalper(MarketMaker):
         kwargs['max_orders'] = 1             # 单次只做一个订单
         kwargs['enable_rebalance'] = False   # 禁用外部重平逻辑
         
+        # 关键：强制父类不要等待成交，每次都进入策略判断
+        kwargs['wait_all_filled'] = False 
+        
         super().__init__(*args, **kwargs)
         
         # --- 策略状态 ---
@@ -35,155 +36,154 @@ class SmartTickScalper(MarketMaker):
         self.hold_start_time = 0
         
         # --- 核心参数 (可在代码中调整) ---
-        self.balance_pct = 0.80        # 每次使用 90% 的可用 U 下单
-        self.max_hold_seconds = 120     # 持仓超过 45 秒未卖出，触发强制 Maker 止损
-        self.stop_loss_pct = 0.008     # 亏损超过 0.4% 触发 Maker 止损
+        self.balance_pct = 0.95        # 资金利用率
+        self.max_hold_seconds = 60     # 持仓超时止损
+        self.stop_loss_pct = 0.005     # 价格止损幅度
         self.chase_bid = True          # 开启买单追价
         self.chase_ask = True          # 开启卖单追价
         
-        logger.info(f"Smart Tick Scalper V2 已启动 [{self.market_type.upper()}]")
-        logger.info(f"资金使用率: {self.balance_pct*100}% | 超时止损: {self.max_hold_seconds}s")
+        # 强制设置一个很大的价差阈值，防止父类逻辑干扰，完全由本策略接管
+        self.force_adjust_spread = 0.0 
+        
+        logger.info(f"Smart Tick Scalper V2 (修复版) 已启动 [{self.market_type.upper()}]")
+
+    def _price_deviation_exceeds_spread(self, current_price: float) -> bool:
+        """
+        [关键修复] 重写父类方法。
+        强制返回 True，欺骗 run.py 的主循环，让它每一轮 interval 都调用 place_limit_orders。
+        这样我们才能在 place_limit_orders 里实现“追单”逻辑。
+        """
+        return True
 
     def get_actual_position(self) -> float:
-        """获取真实净持仓 (兼容 现货/合约)"""
-        # 1. 如果是合约，强制从 API 读取
+        """获取真实净持仓"""
         if self.market_type == 'perp':
             try:
                 positions = self.client.get_positions(self.symbol)
-                # 处理 Backpack 返回空列表或错误的情况
                 if not positions or (isinstance(positions, dict) and 'error' in positions):
                     return 0.0
-                
-                # 找到当前 Symbol 的持仓
                 if isinstance(positions, list):
                     for pos in positions:
                         if pos.get('symbol') == self.symbol:
-                            # 兼容不同字段名 netQuantity / size
-                            qty = float(pos.get('netQuantity') or pos.get('size') or 0.0)
-                            return qty
+                            return float(pos.get('netQuantity') or pos.get('size') or 0.0)
                 return 0.0
             except Exception as e:
                 logger.error(f"查询合约持仓失败: {e}")
                 return 0.0
-        
-        # 2. 如果是现货，使用基类的内存计数 (total_bought - total_sold)
-        # 或者使用 get_asset_balance 读取钱包余额 (更准确)
         else:
-            # 尝试直接读取钱包 Base Asset (如 SOL) 的可用余额
-            # 注意：这假设你账户里的 SOL 都是用来跑策略的
+            # 现货：读取钱包余额
             available, total = self.get_asset_balance(self.base_asset)
-            # 如果内存记录偏差太大，以钱包余额为准
-            net_memory = self.get_net_position()
-            
-            # 只有当钱包余额 > 最小下单量时，才认为有持仓
-            if total > self.min_order_size:
-                return total
-            return net_memory
+            # 如果钱包里的币少于最小下单量，视为无持仓
+            if total < self.min_order_size:
+                return 0.0
+            return total
 
     def place_limit_orders(self):
         """策略主循环"""
-        self.check_ws_connection()
+        # 1. 连接检查
+        if not self.check_ws_connection():
+            return
         
-        # 1. 获取最新盘口
+        # 2. 获取盘口
         bid_price, ask_price = self.get_market_depth()
         if not bid_price or not ask_price:
+            logger.warning("等待盘口数据...")
             return
 
-        # 2. 状态机流转
+        # 3. 获取持仓
+        net = self.get_actual_position()
         
-        # 场景 A: 刚启动或空仓
-        if self.state == "IDLE":
-            # 获取真实持仓
-            net = self.get_actual_position()
-            
-            # 如果持仓 > 最小下单量，说明有遗留仓位，直接进入卖出模式
-            if net > self.min_order_size:
+        # 4. 状态机逻辑
+        # 即使是 BUYING 状态，也要检查持仓，万一 WebSocket 没推送成交但实际上已经成交了
+        if net > self.min_order_size:
+            # 有持仓 -> 强制进入卖出流程
+            if self.state != "SELLING":
                 logger.info(f"检测到持仓 {net}，切换到 [SELLING] 模式")
                 self.held_quantity = net
-                self.avg_cost = self._calculate_average_buy_cost()
-                if self.avg_cost == 0: self.avg_cost = bid_price * 0.999 # 估算成本
-                self.hold_start_time = time.time()
                 self.state = "SELLING"
-                self._execute_sell_logic(bid_price, ask_price)
-            else:
-                self.state = "BUYING"
-                self._execute_buy_logic(bid_price, ask_price)
-
-        # 场景 B: 正在买入
-        elif self.state == "BUYING":
-            self._execute_buy_logic(bid_price, ask_price)
-
-        # 场景 C: 正在卖出
-        elif self.state == "SELLING":
+                if self.avg_cost == 0: 
+                    self.avg_cost = bid_price # 丢失成本时，以当前买价作为估算
+                    self.hold_start_time = time.time()
+            
             self._execute_sell_logic(bid_price, ask_price)
+            
+        else:
+            # 无持仓 -> 买入流程
+            self.state = "BUYING"
+            self.held_quantity = 0
+            self._execute_buy_logic(bid_price, ask_price)
 
     def _execute_buy_logic(self, best_bid: float, best_ask: float):
         """执行买入逻辑"""
-        # 1. 检查追单
+        # 1. 检查是否需要追单
         if self.active_buy_orders:
             current_order = self.active_buy_orders[0]
             current_price = float(current_order['price'])
             
+            # 如果开启追单，且 市场买一 > 我的挂单
             if self.chase_bid and best_bid > current_price:
-                if (best_ask - best_bid) >= self.tick_size: 
-                    logger.info(f"🚀 追单: 市场买一 {best_bid} > 挂单 {current_price}，撤单重挂")
+                # 风控：只有价差正常时才追，防止被钓鱼
+                if (best_ask - best_bid) > 0: 
+                    logger.info(f"🚀 追单: 市场 {best_bid} > 挂单 {current_price}，撤单重挂")
                     self.cancel_existing_orders()
+                else:
+                    logger.debug("Spread 过小或倒挂，暂不追单")
             return
 
         # 2. 计算下单数量
         quote_available, _ = self.get_asset_balance(self.quote_asset)
+        
+        # 只有在还没挂单的时候才检查余额日志，防止刷屏
+        if not self.active_buy_orders:
+            logger.info(f"准备买入: 可用余额 {quote_available:.2f} {self.quote_asset}")
+
         target_quote_amount = quote_available * self.balance_pct
         
-        if target_quote_amount < 1.0:
-             if len(self.active_buy_orders) == 0:
-                 # 日志节流
-                 if int(time.time()) % 10 == 0:
-                    logger.warning(f"余额不足: {quote_available} {self.quote_asset}")
-             return
-
+        # 计算数量
         quantity = target_quote_amount / best_bid
         quantity = round_to_precision(quantity, self.base_precision)
-        quantity = max(self.min_order_size, quantity)
         
+        # 必须大于最小下单量
+        if quantity < self.min_order_size:
+            if not self.active_buy_orders and int(time.time()) % 10 == 0:
+                logger.warning(f"资金不足以购买最小单位: 需要 {self.min_order_size} {self.base_asset}, 计算得出 {quantity}")
+            return
+
+        # 双重检查防止资金不足错误
         if quantity * best_bid > quote_available:
             quantity = round_to_precision(quantity * 0.99, self.base_precision)
             
+        # 3. 挂单价格：挂 Best Bid
         price = best_bid
         self._place_post_only_order("Bid", price, quantity)
 
     def _execute_sell_logic(self, best_bid: float, best_ask: float):
-        """执行卖出逻辑 (含 Maker 止损)"""
-        # 二次确认持仓 (防止卖飞或卖空)
-        if self.market_type == 'perp':
-             # 合约模式下，如果仓位没了，立即停止
-             current_pos = self.get_actual_position()
-             if current_pos < self.min_order_size:
-                 logger.info("合约仓位已平，重置为 IDLE")
-                 self.state = "IDLE"
-                 self.cancel_existing_orders()
-                 return
-        
+        """执行卖出逻辑"""
         if self.held_quantity < self.min_order_size:
-            self.state = "IDLE"
-            self.cancel_existing_orders()
             return
 
+        # 初始化时间
+        if self.hold_start_time == 0:
+            self.hold_start_time = time.time()
+
         hold_duration = time.time() - self.hold_start_time
+        # 防止除以0
+        if self.avg_cost == 0: self.avg_cost = best_bid
+        
         unrealized_pnl_pct = (best_bid - self.avg_cost) / self.avg_cost
 
         is_stop_loss = False
         target_price = 0.0
 
-        # === 决策 A: 止损模式 ===
+        # === 决策 ===
         if hold_duration > self.max_hold_seconds or unrealized_pnl_pct < -self.stop_loss_pct:
             is_stop_loss = True
-            target_price = best_ask
+            target_price = best_ask # 止损：挂卖一尽快跑
             if int(time.time()) % 5 == 0:
-                logger.warning(f"⚠️ 触发 Maker 止损 (持仓 {hold_duration:.0f}s, 盈亏 {unrealized_pnl_pct*100:.2f}%)，目标 {target_price}")
-        
-        # === 决策 B: 止盈/正常模式 ===
+                logger.warning(f"⚠️ 触发 Maker 止损 (持仓 {hold_duration:.0f}s, 盈亏 {unrealized_pnl_pct*100:.2f}%)")
         else:
-            target_price = best_ask
+            target_price = best_ask # 正常：挂卖一排队
+            # 利润保护：除非止损，否则不亏本卖 (成本 + 1 tick)
             min_profit_price = self.avg_cost + self.tick_size
             if target_price < min_profit_price:
                 target_price = min_profit_price
@@ -193,21 +193,25 @@ class SmartTickScalper(MarketMaker):
             current_order = self.active_sell_orders[0]
             current_price = float(current_order['price'])
             
+            # 止损追跌
             if is_stop_loss and self.chase_ask and best_ask < current_price:
-                logger.info(f"📉 止损追价: 市场卖一 {best_ask} < 挂单 {current_price}，撤单")
+                logger.info(f"📉 止损追价: 市场 {best_ask} < 挂单 {current_price}，撤单")
                 self.cancel_existing_orders()
                 return
 
+            # 正常挂单偏离调整 (超过 1 tick 就调)
             if abs(current_price - target_price) >= self.tick_size:
+                 # 只有更有利，或者止损必须降价时才动
                  if (is_stop_loss and target_price < current_price) or (not is_stop_loss and target_price > current_price):
                      self.cancel_existing_orders()
             return
 
+        # 价格保护：卖单不能低于买一 (防止 Taker)
         final_price = max(target_price, best_bid + self.tick_size)
         self._place_post_only_order("Ask", final_price, self.held_quantity)
 
     def _place_post_only_order(self, side: str, price: float, quantity: float):
-        """发送 PostOnly 订单"""
+        """发送 PostOnly 订单 (带详细错误处理)"""
         price = round_to_tick_size(price, self.tick_size)
         quantity = round_to_precision(quantity, self.base_precision)
         
@@ -227,8 +231,16 @@ class SmartTickScalper(MarketMaker):
         res = self.client.execute_order(order)
         
         if isinstance(res, dict) and "error" in res:
-            pass # 忽略 PostOnly 错误
+            err_msg = str(res['error'])
+            
+            # [关键修复] 只忽略 PostOnly 错误，其他错误全部打印！
+            if "post" in err_msg.lower() or "maker" in err_msg.lower():
+                logger.debug(f"PostOnly 触发 (价格 {price} 已穿过盘口)，等待下一轮")
+            else:
+                # 这里会告诉你为什么没下单：余额不足？最小数量限制？API 错误？
+                logger.error(f"❌ 下单失败 [{side} {quantity}@{price}]: {err_msg}")
         else:
+            logger.info(f"✅ 挂单成功: {side} {quantity} @ {price}")
             if side == "Bid":
                 self.active_buy_orders.append(res)
             else:
@@ -245,7 +257,7 @@ class SmartTickScalper(MarketMaker):
         if quantity < self.min_order_size * 0.1: return
 
         if side == "Bid":
-            logger.info(f"✅ 买入成交 {quantity} @ {price} -> 切换至 [SELLING]")
+            logger.info(f"⚡ 买入成交 {quantity} @ {price} -> 切换至 [SELLING]")
             self.state = "SELLING"
             self.held_quantity = quantity
             self.avg_cost = price
@@ -254,7 +266,7 @@ class SmartTickScalper(MarketMaker):
             
         elif side == "Ask":
             profit = (price - self.avg_cost) * quantity
-            logger.info(f"💰 卖出成交 {quantity} @ {price} (盈亏: {profit:.4f} U) -> 切换至 [BUYING]")
-            self.state = "IDLE"
+            logger.info(f"💰 卖出成交 {quantity} @ {price} (盈亏: {profit:.4f}) -> 切换至 [BUYING]")
+            self.state = "IDLE" # 切回 IDLE 重新检测余额
             self.held_quantity = 0
             self.cancel_existing_orders()
