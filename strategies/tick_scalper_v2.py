@@ -41,7 +41,7 @@ class SmartTickScalper(MarketMaker):
         self.chase_ask = True          # 开启卖单追价
         
         # 强制设置一个很大的价差阈值，防止父类逻辑干扰，完全由本策略接管
-        self.force_adjust_spread = 0.0 
+        self.force_adjust_spread = 10 
         
         logger.info(f"Smart Tick Scalper V2 (修复版) 已启动 [{self.market_type.upper()}]")
 
