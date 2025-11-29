@@ -296,20 +296,27 @@ def main():
                     logger.info(f"  止盈阈值: {args.take_profit} {market_maker.quote_asset}")
 
             elif strategy_name == 'tick_scalper_v2':
-                # 自动判断 market_type：如果 symbol 包含 "PERP"，就是合约
-                market_type = 'perp' if 'PERP' in args.symbol.upper() else 'spot'
+                # 1. 智能判断市场类型
+                # 如果用户命令行指定了 --market-type perp，就用用户的
+                # 如果没指定(默认spot)，但 symbol 里有 "PERP"，则自动纠正为 perp
+                if args.market_type == 'perp' or 'PERP' in args.symbol.upper():
+                    current_market_type = 'perp'
+                else:
+                    current_market_type = 'spot'
                 
-                logger.info(f"启动 Tick Scalper V2 ({market_type}) | 交易对: {args.symbol}")
-                
+                logger.info(f"启动 Tick Scalper V2 策略 | 市场类型: {current_market_type} | 交易对: {args.symbol}")
+
+                # 2. 初始化策略，并将 market_type 传入
                 market_maker = SmartTickScalper(
                     api_key=api_key,
                     secret_key=secret_key,
                     symbol=args.symbol,
-                    ws_proxy=proxy_url,
-                    exchange=args.exchange,
-                    market_type=market_type, # <--- 传递这个关键参数
-                    enable_database=args.enable_db
-                ) 
+                    ws_proxy=ws_proxy,
+                    exchange=exchange,
+                    exchange_config=exchange_config,
+                    enable_database=args.enable_db,
+                    market_type=current_market_type  # <--- 关键：必须传递这个参数
+                )
                 
             elif market_type == 'perp':
                 logger.info(f"启动永续合约做市模式 (策略: {strategy_name}, 交易所: {exchange})")
