@@ -213,7 +213,7 @@ def main():
         except ImportError as e:
             logger.error(f"启动命令行界面时出错: {str(e)}")
             sys.exit(1)
-    elif args.symbol and (args.spread is not None or args.strategy in ['grid', 'perp_grid']):
+    elif args.symbol and (args.spread is not None or args.strategy in ['grid', 'perp_grid', 'tick_scalper_v2']):
         # 如果指定了交易对，直接运行策略（做市或网格）
         try:
             from strategies.market_maker import MarketMaker
