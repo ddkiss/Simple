@@ -10,6 +10,7 @@ from typing import Optional
 from config import ENABLE_DATABASE
 from logger import setup_logger
 
+
 # 创建记录器
 logger = setup_logger("main")
 
@@ -220,6 +221,7 @@ def main():
             from strategies.perp_market_maker import PerpetualMarketMaker
             from strategies.grid_strategy import GridStrategy
             from strategies.perp_grid_strategy import PerpGridStrategy
+            from strategies.tick_scalper_v2 import SmartTickScalper
             
             # 处理重平设置
             market_type = args.market_type
@@ -293,6 +295,17 @@ def main():
                 if args.take_profit is not None:
                     logger.info(f"  止盈阈值: {args.take_profit} {market_maker.quote_asset}")
 
+            elif args.strategy == 'tick_scalper_v2':
+                logger.info(f"启动 Tick Scalper V2 策略 (VIP5 专用) | 交易对: {args.symbol}")
+                strategy = SmartTickScalper(
+                    api_key=api_key,
+                    secret_key=secret_key,
+                    symbol=args.symbol,
+                    ws_proxy=proxy_url,
+                    exchange=args.exchange,
+                    # 这里可以传递其他参数，但我们在类里写死了90%仓位
+                )
+                
             elif market_type == 'perp':
                 logger.info(f"启动永续合约做市模式 (策略: {strategy_name}, 交易所: {exchange})")
                 logger.info(f"  目标持仓量: {abs(args.target_position)}")
