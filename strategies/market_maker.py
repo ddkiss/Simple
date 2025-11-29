@@ -1671,7 +1671,7 @@ class MarketMaker:
                 "autoLend": True
             }
             
-            max_retries = 20
+            max_retries = 10
             retries = 0
             while retries < max_retries:
                 res = self.client.execute_order(order)
@@ -1724,7 +1724,7 @@ class MarketMaker:
                 "autoLend": True
             }
 
-            max_retries = 20
+            max_retries = 10
             retries = 0
             while retries < max_retries:
                 res = self.client.execute_order(order)
