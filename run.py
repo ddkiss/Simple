@@ -295,7 +295,7 @@ def main():
                 if args.take_profit is not None:
                     logger.info(f"  止盈阈值: {args.take_profit} {market_maker.quote_asset}")
 
-            elif args.strategy == 'tick_scalper_v2':
+            elif strategy_name == 'tick_scalper_v2':
                 logger.info(f"启动 Tick Scalper V2 策略 (VIP5 专用) | 交易对: {args.symbol}")
                 strategy = SmartTickScalper(
                     api_key=api_key,
