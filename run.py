@@ -296,15 +296,20 @@ def main():
                     logger.info(f"  止盈阈值: {args.take_profit} {market_maker.quote_asset}")
 
             elif strategy_name == 'tick_scalper_v2':
-                logger.info(f"启动 Tick Scalper V2 策略 (VIP5 专用) | 交易对: {args.symbol}")
+                # 自动判断 market_type：如果 symbol 包含 "PERP"，就是合约
+                market_type = 'perp' if 'PERP' in args.symbol.upper() else 'spot'
+                
+                logger.info(f"启动 Tick Scalper V2 ({market_type}) | 交易对: {args.symbol}")
+                
                 strategy = SmartTickScalper(
                     api_key=api_key,
                     secret_key=secret_key,
                     symbol=args.symbol,
                     ws_proxy=proxy_url,
                     exchange=args.exchange,
-                    # 这里可以传递其他参数，但我们在类里写死了90%仓位
-                )
+                    market_type=market_type, # <--- 传递这个关键参数
+                    enable_database=args.enable_db
+                ) 
                 
             elif market_type == 'perp':
                 logger.info(f"启动永续合约做市模式 (策略: {strategy_name}, 交易所: {exchange})")
