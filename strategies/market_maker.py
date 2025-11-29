@@ -295,7 +295,7 @@ class MarketMaker:
                 symbol = item.get('symbol', '')
                 if symbol:
                     total_quantity = float(item.get('totalQuantity', 0))
-                    available_quantity = float(item.get('availableQuantity', 0))
+                    available_quantity = float(item.get('availableQuantity', 0)) + float(item.get('lendQuantity', 0))
                     
                     if symbol not in total_balances:
                         total_balances[symbol] = {
