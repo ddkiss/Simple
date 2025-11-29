@@ -49,7 +49,7 @@ def parse_arguments():
     )
     # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←← 结束新增 ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
     parser.add_argument('--duration', type=int, default=3600, help='运行时间（秒）(默认: 3600)')
-    parser.add_argument('--interval', type=int, default=60, help='更新间隔（秒）(默认: 60)')
+    parser.add_argument('--interval', type=float, default=60, help='更新间隔（秒）(默认: 60)')
     parser.add_argument('--market-type', choices=['spot', 'perp'], default='spot', help='市场类型 (spot 或 perp)')
     parser.add_argument('--target-position', type=float, default=1.0, help='永续合约目标持仓量 (绝对值, 例如: 1.0)')
     parser.add_argument('--max-position', type=float, default=1.0, help='永续合约最大允许仓位(绝对值)')
