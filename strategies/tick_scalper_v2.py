@@ -1,8 +1,6 @@
 """
-Smart Tick Scalper V2 (修复版)
-修复说明：
-1. 强制每轮循环都执行逻辑，解决“挂单后不动”的问题。
-2. 修复错误日志被吞掉的问题，现在会显示具体的下单失败原因。
+Smart Tick Scalper V2 (修复版 - 显式报错)
+此版本修复了错误日志被吞没的问题，并强制策略高频循环。
 """
 from __future__ import annotations
 import time
@@ -49,9 +47,8 @@ class SmartTickScalper(MarketMaker):
 
     def _price_deviation_exceeds_spread(self, current_price: float) -> bool:
         """
-        [关键修复] 重写父类方法。
-        强制返回 True，欺骗 run.py 的主循环，让它每一轮 interval 都调用 place_limit_orders。
-        这样我们才能在 place_limit_orders 里实现“追单”逻辑。
+        [关键修复] 强制返回 True，欺骗 run.py 的主循环，
+        让它每一轮 interval 都调用 place_limit_orders。
         """
         return True
 
@@ -94,7 +91,6 @@ class SmartTickScalper(MarketMaker):
         net = self.get_actual_position()
         
         # 4. 状态机逻辑
-        # 即使是 BUYING 状态，也要检查持仓，万一 WebSocket 没推送成交但实际上已经成交了
         if net > self.min_order_size:
             # 有持仓 -> 强制进入卖出流程
             if self.state != "SELLING":
@@ -122,7 +118,7 @@ class SmartTickScalper(MarketMaker):
             
             # 如果开启追单，且 市场买一 > 我的挂单
             if self.chase_bid and best_bid > current_price:
-                # 风控：只有价差正常时才追，防止被钓鱼
+                # 风控：只有价差正常时才追
                 if (best_ask - best_bid) > 0: 
                     logger.info(f"🚀 追单: 市场 {best_bid} > 挂单 {current_price}，撤单重挂")
                     self.cancel_existing_orders()
@@ -135,7 +131,9 @@ class SmartTickScalper(MarketMaker):
         
         # 只有在还没挂单的时候才检查余额日志，防止刷屏
         if not self.active_buy_orders:
-            logger.info(f"准备买入: 可用余额 {quote_available:.2f} {self.quote_asset}")
+            # 每10秒打印一次余额，方便调试
+            if int(time.time()) % 10 == 0:
+                logger.info(f"准备买入: 可用余额 {quote_available:.2f} {self.quote_asset}")
 
         target_quote_amount = quote_available * self.balance_pct
         
@@ -146,7 +144,7 @@ class SmartTickScalper(MarketMaker):
         # 必须大于最小下单量
         if quantity < self.min_order_size:
             if not self.active_buy_orders and int(time.time()) % 10 == 0:
-                logger.warning(f"资金不足以购买最小单位: 需要 {self.min_order_size} {self.base_asset}, 计算得出 {quantity}")
+                logger.warning(f"❌ 资金不足以购买最小单位: 需要 {self.min_order_size} {self.base_asset}, 计算得出 {quantity}")
             return
 
         # 双重检查防止资金不足错误
@@ -167,7 +165,6 @@ class SmartTickScalper(MarketMaker):
             self.hold_start_time = time.time()
 
         hold_duration = time.time() - self.hold_start_time
-        # 防止除以0
         if self.avg_cost == 0: self.avg_cost = best_bid
         
         unrealized_pnl_pct = (best_bid - self.avg_cost) / self.avg_cost
@@ -183,7 +180,6 @@ class SmartTickScalper(MarketMaker):
                 logger.warning(f"⚠️ 触发 Maker 止损 (持仓 {hold_duration:.0f}s, 盈亏 {unrealized_pnl_pct*100:.2f}%)")
         else:
             target_price = best_ask # 正常：挂卖一排队
-            # 利润保护：除非止损，否则不亏本卖 (成本 + 1 tick)
             min_profit_price = self.avg_cost + self.tick_size
             if target_price < min_profit_price:
                 target_price = min_profit_price
@@ -199,14 +195,11 @@ class SmartTickScalper(MarketMaker):
                 self.cancel_existing_orders()
                 return
 
-            # 正常挂单偏离调整 (超过 1 tick 就调)
             if abs(current_price - target_price) >= self.tick_size:
-                 # 只有更有利，或者止损必须降价时才动
                  if (is_stop_loss and target_price < current_price) or (not is_stop_loss and target_price > current_price):
                      self.cancel_existing_orders()
             return
 
-        # 价格保护：卖单不能低于买一 (防止 Taker)
         final_price = max(target_price, best_bid + self.tick_size)
         self._place_post_only_order("Ask", final_price, self.held_quantity)
 
@@ -237,7 +230,6 @@ class SmartTickScalper(MarketMaker):
             if "post" in err_msg.lower() or "maker" in err_msg.lower():
                 logger.debug(f"PostOnly 触发 (价格 {price} 已穿过盘口)，等待下一轮")
             else:
-                # 这里会告诉你为什么没下单：余额不足？最小数量限制？API 错误？
                 logger.error(f"❌ 下单失败 [{side} {quantity}@{price}]: {err_msg}")
         else:
             logger.info(f"✅ 挂单成功: {side} {quantity} @ {price}")
@@ -267,6 +259,6 @@ class SmartTickScalper(MarketMaker):
         elif side == "Ask":
             profit = (price - self.avg_cost) * quantity
             logger.info(f"💰 卖出成交 {quantity} @ {price} (盈亏: {profit:.4f}) -> 切换至 [BUYING]")
-            self.state = "IDLE" # 切回 IDLE 重新检测余额
+            self.state = "IDLE" 
             self.held_quantity = 0
             self.cancel_existing_orders()
