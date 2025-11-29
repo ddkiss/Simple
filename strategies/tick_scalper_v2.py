@@ -51,7 +51,7 @@ class SmartTickScalper(MarketMaker):
         self.chase_ask = True           # 开启卖单追价
         
         # --- [优化] 最小追单阈值 ---
-        self.min_chase_pct = kwargs.get('min_chase_pct', 0.00002)
+        self.min_chase_pct = kwargs.get('min_chase_pct', 0.00001)
         
         # 强制设置一个很大的价差阈值，防止父类逻辑干扰
         self.force_adjust_spread = 10 
