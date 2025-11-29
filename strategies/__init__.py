@@ -6,7 +6,7 @@ from .perp_market_maker import PerpetualMarketMaker
 from .maker_taker_hedge import MakerTakerHedgeStrategy
 from .grid_strategy import GridStrategy
 from .perp_grid_strategy import PerpGridStrategy
-from .strategies.tick_scalper_v2 import SmartTickScalper
+from .tick_scalper_v2 import SmartTickScalper
 
 __all__ = [
     "MarketMaker",
