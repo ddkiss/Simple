@@ -39,13 +39,13 @@ class SmartTickScalper(MarketMaker):
         
         # --- [风控] 止损冷却 ---
         self.last_stop_loss_time = 0
-        self.stop_loss_cooldown = kwargs.get('stop_loss_cooldown', 60)
+        self.stop_loss_cooldown = kwargs.get('stop_loss_cooldown', 30)
         
         # --- [优化] 资金利用率 ---
         self.balance_pct = kwargs.get('balance_pct', 0.92)
         
         # --- 核心参数 ---
-        self.max_hold_seconds = 120     # 持仓超时止损
+        self.max_hold_seconds = 150     # 持仓超时止损
         self.stop_loss_pct = 0.01      # 价格止损幅度
         self.chase_bid = True           # 开启买单追价
         self.chase_ask = True           # 开启卖单追价
