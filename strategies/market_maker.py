@@ -1679,7 +1679,7 @@ class MarketMaker:
                     break  # 成功或非 "take" 错误，跳出循环
         
                 # 计算逐渐增大的调整幅度
-                adjustment = self.tick_size * 2 * (retries + 1)
+                adjustment = self.tick_size * (retries + 1)
                 logger.info(f"调整买单价格并重试... (尝试 {retries+1}/{max_retries}, 调整幅度: -{adjustment})")
                 order["price"] = str(round_to_tick_size(float(order["price"]) - adjustment, self.tick_size))
                 retries += 1
@@ -1732,7 +1732,7 @@ class MarketMaker:
                     break  # 成功或非 "take" 错误，跳出循环
         
                 # 计算逐渐增大的调整幅度
-                adjustment = self.tick_size * 2 * (retries + 1)
+                adjustment = self.tick_size * (retries + 1)
                 logger.info(f"调整卖单价格并重试... (尝试 {retries+1}/{max_retries}, 调整幅度: +{adjustment})")
                 order["price"] = str(round_to_tick_size(float(order["price"]) + adjustment, self.tick_size))
                 retries += 1
