@@ -28,6 +28,9 @@ class SmartTickScalper(MarketMaker):
         kwargs['wait_all_filled'] = False    # 强制不等待，由策略控制循环
         
         super().__init__(*args, **kwargs)
+
+        # 新增：提取杠杆倍数。如果是 spot 默认为 1，如果是 perp 默认可以设为更高，或者由外部传入
+        self.leverage = kwargs.get('leverage', 2.0)
         
         # --- 策略状态 ---
         self.state = "IDLE"  # IDLE (空仓), BUYING (挂买中), SELLING (挂卖中)
@@ -39,10 +42,10 @@ class SmartTickScalper(MarketMaker):
         
         # --- [风控] 止损冷却 ---
         self.last_stop_loss_time = 0
-        self.stop_loss_cooldown = kwargs.get('stop_loss_cooldown', 35)
+        self.stop_loss_cooldown = kwargs.get('stop_loss_cooldown', 30)
         
         # --- [优化] 资金利用率 ---
-        self.balance_pct = kwargs.get('balance_pct', 0.92)
+        self.balance_pct = kwargs.get('balance_pct', 0.8)
         
         # --- 核心参数 ---
         self.max_hold_seconds = 135     # 持仓超时止损
@@ -152,12 +155,22 @@ class SmartTickScalper(MarketMaker):
 
         # 2. 计算下单数量
         quote_available, _ = self.get_asset_balance(self.quote_asset)
-        
+
+        # 计算总购买力 (Buying Power)
+        if self.market_type == 'perp':
+            # 合约模式：购买力 = 余额 * 杠杆倍数
+            total_buying_power = quote_available * self.leverage
+        else:
+            # 现货模式：购买力 = 余额
+            total_buying_power = quote_available
+
+        # 应用资金利用率配置 (比如 0.92)
+        # 注意：如果杠杆设为 10，balance_pct 设为 0.92，意味着你会用掉 9.2 倍的本金开仓
+        # 风险提示：这非常接近满仓，极其容易爆仓！建议 balance_pct 调低
+        target_quote_amount = total_buying_power * self.balance_pct
+       
         if not self.active_buy_orders and int(time.time()) % 10 == 0:
             logger.info(f"准备买入: 可用余额 {quote_available:.2f} {self.quote_asset}")
-
-        # [资金优化]
-        target_quote_amount = quote_available * self.balance_pct
         
         quantity = target_quote_amount / best_bid
         quantity = round_to_precision(quantity, self.base_precision)
